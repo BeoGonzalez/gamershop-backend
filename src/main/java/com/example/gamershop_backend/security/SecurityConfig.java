@@ -31,11 +31,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // Importante para React
 
                         // 2. Rutas SOLO para ADMIN (Operaciones destructivas o endpoints de gestión)
-                        .requestMatchers(HttpMethod.DELETE, "/carrito/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/carrito/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/producto/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/producto/**").hasRole("ADMIN")
 
                         // 3. Rutas para AMBOS (Ver productos)
-                        .requestMatchers(HttpMethod.GET, "/carrito/**").authenticated() // Cualquier rol logueado
+                        .requestMatchers(HttpMethod.GET, "/api/producto/**").authenticated() // Cualquier rol logueado
 
                         // 4. Todo lo demás requiere login
                         .anyRequest().authenticated()
