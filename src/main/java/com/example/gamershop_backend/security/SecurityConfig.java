@@ -23,9 +23,8 @@ import java.util.Arrays;
 public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
-    private final JwtAuthenticationEntryPoint jwtEntryPoint; // NUEVO: Inyectamos el manejador de errores
+    private final JwtAuthenticationEntryPoint jwtEntryPoint;
 
-    // Constructor actualizado para recibir el EntryPoint
     public SecurityConfig(JwtFilter jwtFilter, JwtAuthenticationEntryPoint jwtEntryPoint) {
         this.jwtFilter = jwtFilter;
         this.jwtEntryPoint = jwtEntryPoint;
@@ -37,47 +36,40 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-                // 1. MANEJO DE EXCEPCIONES: Aquí conectamos tu clase "Chivato"
-                // Si falla la auth o los permisos, Spring llamará a jwtEntryPoint.commence()
+                // Manejo de excepciones (Importante para ver mensajes de error claros 401/403)
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtEntryPoint))
 
                 .authorizeHttpRequests(auth -> auth
-                        // 2. RUTAS PÚBLICAS
-                        // OPTIONS: Necesario para que el navegador pregunte permisos (CORS) sin autenticarse
+                        // 1. RUTAS PÚBLICAS
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        // Auth: Login y Registro libres para todos
                         .requestMatchers("/auth/**").permitAll()
-                        // Productos: GET libre para ver el catálogo
                         .requestMatchers(HttpMethod.GET, "/api/producto/**").permitAll()
 
-                        // 3. RUTAS DE ADMIN (Modificaciones de datos)
-                        // Requieren que el usuario tenga ROLE_ADMIN en su token
+                        // 2. RUTAS DE ADMIN
                         .requestMatchers(HttpMethod.POST, "/api/producto/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/producto/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/producto/**").hasRole("ADMIN")
 
-                        // 4. RESTO DE RUTAS
+                        // 3. RESTO
                         .anyRequest().authenticated()
                 )
-                // Configuración Stateless (JWT no usa cookies de sesión)
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // Añadir el filtro JWT antes del filtro estándar
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
+    // --- CONFIGURACIÓN CORS ARREGLADA (PERMISIVA) ---
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Orígenes permitidos (Localhost para pruebas y Vercel para producción)
-        configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:3000",
-                "https://gamer-shop-sqvu.vercel.app"
-        ));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
+
+        // CAMBIO CLAVE: Usar allowedOriginPatterns("*") permite CUALQUIER origen.
+        // Esto elimina los bloqueos de CORS mientras desarrollas.
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Auth-Token"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
