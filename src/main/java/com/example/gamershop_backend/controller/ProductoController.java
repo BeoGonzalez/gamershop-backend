@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/producto") // Asegúrate que SecurityConfig use esta misma ruta
+@RequestMapping("/api/producto")
 public class ProductoController {
     private final ProductoRepository repo;
 
