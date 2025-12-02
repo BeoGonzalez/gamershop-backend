@@ -17,75 +17,67 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
-import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
+    private final JwtAuthenticationEntryPoint jwtEntryPoint; // NUEVO: Inyectamos el manejador de errores
 
-    public SecurityConfig(JwtFilter jwtFilter) {
+    // Constructor actualizado para recibir el EntryPoint
+    public SecurityConfig(JwtFilter jwtFilter, JwtAuthenticationEntryPoint jwtEntryPoint) {
         this.jwtFilter = jwtFilter;
+        this.jwtEntryPoint = jwtEntryPoint;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // 1. Deshabilitar CSRF (No necesario para APIs Stateless)
                 .csrf(csrf -> csrf.disable())
-
-                // 2. Configurar CORS explícitamente usando nuestro Bean de abajo
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-                // 3. Gestión de sesión sin estado (Stateless)
-                .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // 1. MANEJO DE EXCEPCIONES: Aquí conectamos tu clase "Chivato"
+                // Si falla la auth o los permisos, Spring llamará a jwtEntryPoint.commence()
+                .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtEntryPoint))
 
-                // 4. Reglas de Autorización
                 .authorizeHttpRequests(auth -> auth
-                        // A. PERMITIR SIEMPRE (Login, Registro y Pre-flight de CORS)
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // ¡CRUCIAL PARA EL 403 DE CORS!
+                        // 2. RUTAS PÚBLICAS
+                        // OPTIONS: Necesario para que el navegador pregunte permisos (CORS) sin autenticarse
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Auth: Login y Registro libres para todos
                         .requestMatchers("/auth/**").permitAll()
-
-                        // B. RUTAS DE PRODUCTOS
-                        // GET: Visible para todos (o cámbialo a .authenticated() si prefieres)
+                        // Productos: GET libre para ver el catálogo
                         .requestMatchers(HttpMethod.GET, "/api/producto/**").permitAll()
 
-                        // C. RUTAS DE ADMIN (Requieren Rol)
-                        // hasRole("ADMIN") verifica que el usuario tenga la autoridad "ROLE_ADMIN"
+                        // 3. RUTAS DE ADMIN (Modificaciones de datos)
+                        // Requieren que el usuario tenga ROLE_ADMIN en su token
                         .requestMatchers(HttpMethod.POST, "/api/producto/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/producto/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/producto/**").hasRole("ADMIN")
 
-                        // D. Resto requiere autenticación
+                        // 4. RESTO DE RUTAS
                         .anyRequest().authenticated()
                 )
+                // Configuración Stateless (JWT no usa cookies de sesión)
+                .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // 5. Añadir el filtro JWT
+                // Añadir el filtro JWT antes del filtro estándar
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // --- CONFIGURACIÓN CORS ROBUSTA ---
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-
-        // Orígenes permitidos (Localhost y Vercel)
-        // Asegúrate de que no haya barras al final de las URL
+        // Orígenes permitidos (Localhost para pruebas y Vercel para producción)
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:3000",
                 "https://gamer-shop-sqvu.vercel.app"
         ));
-
-        // Métodos permitidos
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
-
-        // Cabeceras permitidas
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Auth-Token"));
-
-        // Permitir credenciales
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
