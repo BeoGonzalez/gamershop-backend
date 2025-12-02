@@ -17,6 +17,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -33,40 +34,44 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                // Desactiva CSRF ya que es una API REST sin estado (STATELESS) y usa JWT.
+                // Si se usara CSRF, se podría usar csrf.ignoringRequestMatchers("/auth/**").
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-                // Manejo de excepciones (Importante para ver mensajes de error claros 401/403)
+                // Manejo de excepciones para errores 401/403
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtEntryPoint))
 
                 .authorizeHttpRequests(auth -> auth
                         // 1. RUTAS PÚBLICAS
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/producto/**").permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // Pre-flight CORS
+                        .requestMatchers("/auth/**").permitAll() // Login/Registro
+                        .requestMatchers(HttpMethod.GET, "/api/producto/**").permitAll() // Ver productos
 
-                        // 2. RUTAS DE ADMIN
+                        // 2. RUTAS DE ADMIN (Permisos por rol)
                         .requestMatchers(HttpMethod.POST, "/api/producto/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/producto/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/producto/**").hasRole("ADMIN")
 
-                        // 3. RESTO
+                        // 3. RESTO (Requiere autenticación)
                         .anyRequest().authenticated()
                 )
+                // Configura la sesión como sin estado (STATELESS) para JWT
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // Agrega el filtro JWT antes del filtro de autenticación estándar de Spring
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // --- CONFIGURACIÓN CORS ARREGLADA (PERMISIVA) ---
+    // --- CONFIGURACIÓN CORS (Permisiva) ---
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // CAMBIO CLAVE: Usar allowedOriginPatterns("*") permite CUALQUIER origen.
-        // Esto elimina los bloqueos de CORS mientras desarrollas.
-        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        // Permite CUALQUIER origen (*). Ideal para desarrollo.
+        configuration.setAllowedOriginPatterns(List.of("*"));
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Auth-Token"));
@@ -76,6 +81,8 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
+
+    // --- Otros Beans Necesarios ---
 
     @Bean
     public PasswordEncoder passwordEncoder() {
