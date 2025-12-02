@@ -12,6 +12,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/producto")
+@CrossOrigin("*") // Agregado para evitar bloqueos de CORS
 public class ProductoController {
     private final ProductoRepository repo;
 
@@ -19,20 +20,44 @@ public class ProductoController {
         this.repo = repo;
     }
 
-    // 1. Listar todos los productos (incluyendo su stock actual)
+    // 1. Listar (GET /api/producto)
     @GetMapping
     public ResponseEntity<List<Producto>> listar() {
         return ResponseEntity.ok(repo.findAll());
     }
 
-    // 2. Guardar un producto nuevo (El admin envía el stock inicial aquí)
+    // 2. Obtener por ID (GET /api/producto/{id}) -> FALTABA ESTE
+    @GetMapping("/{id}")
+    public ResponseEntity<Producto> obtenerPorId(@PathVariable Long id) {
+        return repo.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // 3. Guardar / Crear (POST /api/producto)
     @PostMapping
     public ResponseEntity<Producto> guardar(@RequestBody Producto producto) {
+        // Al usar 'int' primitivo en el modelo, si no envían stock, Java lo pone en 0 automáticamente.
+        // Eliminamos la validación de null ya que int no puede ser null.
         Producto nuevo = repo.save(producto);
         return ResponseEntity.status(HttpStatus.CREATED).body(nuevo);
     }
 
-    // 3. Eliminar un producto
+    // 4. Actualizar (PUT /api/producto/{id}) -> FALTABA ESTE
+    @PutMapping("/{id}")
+    public ResponseEntity<Producto> actualizar(@PathVariable Long id, @RequestBody Producto productoDetails) {
+        return repo.findById(id)
+                .map(producto -> {
+                    producto.setNombre(productoDetails.getNombre());
+                    producto.setCategoria(productoDetails.getCategoria());
+                    producto.setPrecio(productoDetails.getPrecio());
+                    producto.setStock(productoDetails.getStock());
+                    return ResponseEntity.ok(repo.save(producto));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // 5. Eliminar (DELETE /api/producto/{id})
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         if (!repo.existsById(id)) {
@@ -42,40 +67,35 @@ public class ProductoController {
         return ResponseEntity.noContent().build();
     }
 
-    // 4. PROCESAR COMPRA (Lógica de Stock)
-    // Recibe una lista de objetos: [{ "id": 1, "cantidad": 2 }, ...]
+    // 6. PROCESAR COMPRA (POST /api/producto/comprar)
     @PostMapping("/comprar")
-    @Transactional // IMPORTANTE: Si algo falla a mitad de camino, se deshacen todos los cambios (Rollback)
+    @Transactional
     public ResponseEntity<?> procesarCompra(@RequestBody List<Map<String, Object>> itemsCompra) {
         try {
             for (Map<String, Object> item : itemsCompra) {
-                // 1. Obtener datos del JSON
                 Long id = Long.valueOf(item.get("id").toString());
                 int cantidadComprada = Integer.parseInt(item.get("cantidad").toString());
 
-                // 2. Buscar el producto en la base de datos
                 Producto productoDB = repo.findById(id)
                         .orElseThrow(() -> new RuntimeException("Producto con ID " + id + " no encontrado"));
 
-                // 3. Validar si hay suficiente stock
-                if (productoDB.getStock() < cantidadComprada) {
+                // Trabajamos con 'int'. Si tu modelo usa 'Integer' y permite nulos,
+                // añade aquí: if (productoDB.getStock() == null) productoDB.setStock(0);
+                int stockActual = productoDB.getStock();
+
+                if (stockActual < cantidadComprada) {
                     return ResponseEntity.badRequest()
                             .body("Stock insuficiente para: " + productoDB.getNombre() +
                                     ". Solicitado: " + cantidadComprada +
-                                    ", Disponible: " + productoDB.getStock());
+                                    ", Disponible: " + stockActual);
                 }
 
-                // 4. Restar el stock y guardar
-                productoDB.setStock(productoDB.getStock() - cantidadComprada);
+                productoDB.setStock(stockActual - cantidadComprada);
                 repo.save(productoDB);
             }
-
-            return ResponseEntity.ok("Compra procesada con éxito. Inventario actualizado.");
-
+            return ResponseEntity.ok("Compra procesada con éxito.");
         } catch (Exception e) {
-            // Si ocurre cualquier error (ID no existe, stock insuficiente, error de DB),
-            // se devuelve un error 400 y la anotación @Transactional revierte los cambios.
-            return ResponseEntity.badRequest().body("Error al procesar la compra: " + e.getMessage());
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
 }
