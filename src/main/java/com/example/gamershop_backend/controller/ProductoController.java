@@ -12,7 +12,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/producto")
-@CrossOrigin("*") // Agregado para evitar bloqueos de CORS
+@CrossOrigin("*") // Permite peticiones desde cualquier origen (útil para desarrollo)
 public class ProductoController {
     private final ProductoRepository repo;
 
@@ -20,13 +20,13 @@ public class ProductoController {
         this.repo = repo;
     }
 
-    // 1. Listar (GET /api/producto)
+    // 1. Listar todos los productos
     @GetMapping
     public ResponseEntity<List<Producto>> listar() {
         return ResponseEntity.ok(repo.findAll());
     }
 
-    // 2. Obtener por ID (GET /api/producto/{id}) -> FALTABA ESTE
+    // 2. Obtener por ID
     @GetMapping("/{id}")
     public ResponseEntity<Producto> obtenerPorId(@PathVariable Long id) {
         return repo.findById(id)
@@ -34,16 +34,18 @@ public class ProductoController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // 3. Guardar / Crear (POST /api/producto)
+    // 3. Guardar un producto nuevo
     @PostMapping
     public ResponseEntity<Producto> guardar(@RequestBody Producto producto) {
-        // Al usar 'int' primitivo en el modelo, si no envían stock, Java lo pone en 0 automáticamente.
-        // Eliminamos la validación de null ya que int no puede ser null.
+        // Si el stock viene nulo, lo guardamos como null (permitido por Integer)
+        // o puedes forzarlo a 0 aquí si prefieres:
+        // if (producto.getStock() == null) producto.setStock(0);
+
         Producto nuevo = repo.save(producto);
         return ResponseEntity.status(HttpStatus.CREATED).body(nuevo);
     }
 
-    // 4. Actualizar (PUT /api/producto/{id}) -> FALTABA ESTE
+    // 4. Actualizar producto existente
     @PutMapping("/{id}")
     public ResponseEntity<Producto> actualizar(@PathVariable Long id, @RequestBody Producto productoDetails) {
         return repo.findById(id)
@@ -57,7 +59,7 @@ public class ProductoController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // 5. Eliminar (DELETE /api/producto/{id})
+    // 5. Eliminar un producto
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         if (!repo.existsById(id)) {
@@ -67,22 +69,30 @@ public class ProductoController {
         return ResponseEntity.noContent().build();
     }
 
-    // 6. PROCESAR COMPRA (POST /api/producto/comprar)
+    // 6. PROCESAR COMPRA (Lógica Defensiva para Stock)
     @PostMapping("/comprar")
-    @Transactional
+    @Transactional // Si falla un producto, se cancela toda la compra (Rollback)
     public ResponseEntity<?> procesarCompra(@RequestBody List<Map<String, Object>> itemsCompra) {
         try {
             for (Map<String, Object> item : itemsCompra) {
+                // Obtener datos del JSON
                 Long id = Long.valueOf(item.get("id").toString());
                 int cantidadComprada = Integer.parseInt(item.get("cantidad").toString());
 
+                // Buscar el producto en la DB
                 Producto productoDB = repo.findById(id)
                         .orElseThrow(() -> new RuntimeException("Producto con ID " + id + " no encontrado"));
 
-                // Trabajamos con 'int'. Si tu modelo usa 'Integer' y permite nulos,
-                // añade aquí: if (productoDB.getStock() == null) productoDB.setStock(0);
-                int stockActual = productoDB.getStock();
+                // --- MANEJO DEFENSIVO DE INTEGER NULO ---
+                // Obtenemos el stock como objeto Integer (puede ser null)
+                Integer stockActual = productoDB.getStock();
 
+                // Si es null (producto antiguo o sin stock definido), asumimos que es 0
+                if (stockActual == null) {
+                    stockActual = 0;
+                }
+
+                // Ahora la validación es segura porque stockActual tiene un valor numérico
                 if (stockActual < cantidadComprada) {
                     return ResponseEntity.badRequest()
                             .body("Stock insuficiente para: " + productoDB.getNombre() +
@@ -90,12 +100,16 @@ public class ProductoController {
                                     ", Disponible: " + stockActual);
                 }
 
+                // Restar y guardar (seguro porque stockActual no es null)
                 productoDB.setStock(stockActual - cantidadComprada);
                 repo.save(productoDB);
             }
-            return ResponseEntity.ok("Compra procesada con éxito.");
+
+            return ResponseEntity.ok("Compra procesada con éxito. Inventario actualizado.");
+
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+            // Si ocurre cualquier error, @Transactional revierte los cambios en la DB
+            return ResponseEntity.badRequest().body("Error al procesar la compra: " + e.getMessage());
         }
     }
 }
