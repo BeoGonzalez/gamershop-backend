@@ -1,5 +1,6 @@
 package com.example.gamershop_backend.security;
 
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,7 +14,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 @Component
@@ -33,31 +33,47 @@ public class JwtFilter extends OncePerRequestFilter {
         final String jwt;
         final String username;
 
+        // 1. Validar si existe el encabezado Authorization
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
         jwt = authHeader.substring(7);
-        if (jwtUtils.validateToken(jwt)) {
-            username = jwtUtils.extractUsername(jwt);
 
-            // Extraer el rol del token (opcional, aquí simplificado)
-            // En un sistema real, leerías el rol del token Claims
-            // Aquí asumimos que si el token es válido, autenticamos al usuario en el contexto
-            // IMPORTANTE: Para que funcione hasRole("ADMIN"), necesitamos cargar las autoridades reales
-            // Por simplicidad en este paso, esto autentica la petición,
-            // pero para roles avanzados deberías extraer el claim "role" en JwtUtils
+        try {
+            // 2. Validar el Token
+            if (jwtUtils.validateToken(jwt)) {
+                username = jwtUtils.extractUsername(jwt);
 
-            UserDetails userDetails = new User(username, "", Collections.emptyList());
+                // --- INICIO DEL ARREGLO ---
 
-            UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                    userDetails,
-                    null,
-                    userDetails.getAuthorities()
-            );
+                // Extraer el rol del token (clave "role")
+                String role = jwtUtils.extractClaim(jwt, claims -> (String) claims.get("role"));
 
-            SecurityContextHolder.getContext().setAuthentication(authToken);
+                // Si no tiene rol, asignamos USER por defecto
+                if (role == null) {
+                    role = "USER";
+                }
+
+                // Crear la autoridad con el prefijo "ROLE_" necesario para Spring Security
+                SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
+
+                // Crear el usuario CON la autoridad (ya no es lista vacía)
+                UserDetails userDetails = new User(username, "", List.of(authority));
+
+                // --- FIN DEL ARREGLO ---
+
+                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                        userDetails,
+                        null,
+                        userDetails.getAuthorities()
+                );
+
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+            }
+        } catch (Exception e) {
+            // Ignoramos errores de token para no romper la petición con 500
         }
 
         filterChain.doFilter(request, response);
