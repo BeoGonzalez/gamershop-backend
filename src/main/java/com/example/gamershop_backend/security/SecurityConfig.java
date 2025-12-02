@@ -11,6 +11,12 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 public class SecurityConfig {
@@ -24,32 +30,45 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable())
-                .cors(cors -> cors.configure(http)) // Habilitar CORS
+                .csrf(csrf -> csrf.disable()) // Deshabilitar CSRF (No necesario para JWT)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource())) // USAR NUESTRA CONFIG CORS
                 .authorizeHttpRequests(auth -> auth
-                        // 1. Rutas Públicas (Login y Registro)
-                        // Estas rutas NO dan 403 ni 404 si el controller AuthController tiene @RequestMapping("/auth")
+                        // 1. PERMITIR SIEMPRE AUTH Y OPTIONS
                         .requestMatchers("/auth/**").permitAll()
-
-                        // Permitir solicitudes OPTIONS (necesario para que React no reciba error de CORS)
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // 2. Rutas SOLO para ADMIN (Operaciones destructivas)
-                        // IMPORTANTE: Aquí actualizamos la ruta de "/carrito" a "/api/producto"
+                        // 2. Rutas Admin
                         .requestMatchers(HttpMethod.DELETE, "/api/producto/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/producto/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/producto/**").hasRole("ADMIN")
 
-                        // 3. Rutas para AMBOS (Ver productos)
-                        // Cualquier usuario logueado (USER o ADMIN) puede ver la lista
-                        .requestMatchers(HttpMethod.GET, "/api/producto/**").authenticated()
+                        // 3. Rutas Públicas/Autenticadas
+                        .requestMatchers(HttpMethod.GET, "/api/producto/**").permitAll() // Dejar ver productos a todos (opcional)
 
-                        // 4. Todo lo demás requiere login
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    // --- CONFIGURACIÓN CORS ROBUSTA ---
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        // Agrega aquí TODAS tus URLs (Localhost y Vercel)
+        configuration.setAllowedOrigins(Arrays.asList(
+                "http://localhost:3000",
+                "https://gamer-shop-sqvu.vercel.app"
+        ));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 
     @Bean

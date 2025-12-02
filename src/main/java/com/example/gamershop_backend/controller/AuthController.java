@@ -3,6 +3,7 @@ package com.example.gamershop_backend.controller;
 import com.example.gamershop_backend.model.Usuario;
 import com.example.gamershop_backend.repository.UsuarioRepository;
 import com.example.gamershop_backend.security.JwtUtils;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -11,6 +12,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/auth")
+@CrossOrigin("*") // "Seguro de vida" para evitar bloqueos de CORS extra
 public class AuthController {
 
     private final UsuarioRepository usuarioRepository;
@@ -23,41 +25,66 @@ public class AuthController {
         this.jwtUtils = jwtUtils;
     }
 
+    // --- REGISTRO DE USUARIOS ---
     @PostMapping("/register")
     public ResponseEntity<?> registrar(@RequestBody Usuario usuario) {
-        if (usuarioRepository.existsByUsername(usuario.getUsername())) {
-            return ResponseEntity.badRequest().body("El usuario ya existe");
-        }
-        // Encriptamos la contraseña
-        usuario.setPassword(passwordEncoder.encode(usuario.getPassword()));
+        try {
+            // 1. Validar si ya existe el usuario
+            if (usuarioRepository.existsByUsername(usuario.getUsername())) {
+                return ResponseEntity.badRequest().body("Error: El nombre de usuario ya está en uso.");
+            }
 
-        // Aseguramos que el rol venga bien, si no, por defecto USER
-        if (usuario.getRol() == null) {
-            usuario.setRol(Usuario.Rol.USER);
-        }
+            // 2. Encriptar la contraseña (CRUCIAL)
+            usuario.setPassword(passwordEncoder.encode(usuario.getPassword()));
 
-        usuarioRepository.save(usuario);
-        return ResponseEntity.ok("Usuario registrado exitosamente");
+            // 3. Asignar rol por defecto si no viene en el JSON
+            if (usuario.getRol() == null) {
+                usuario.setRol(Usuario.Rol.USER);
+            }
+
+            // 4. Guardar en BD
+            usuarioRepository.save(usuario);
+
+            return ResponseEntity.status(HttpStatus.CREATED).body("Usuario registrado exitosamente");
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error al registrar el usuario: " + e.getMessage());
+        }
     }
 
+    // --- INICIO DE SESIÓN ---
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> credenciales) {
-        String username = credenciales.get("username");
-        String password = credenciales.get("password");
+        try {
+            String username = credenciales.get("username");
+            String password = credenciales.get("password");
 
-        Usuario usuario = usuarioRepository.findByUsername(username).orElse(null);
+            // 1. Buscar usuario
+            Usuario usuario = usuarioRepository.findByUsername(username).orElse(null);
 
-        if (usuario != null && passwordEncoder.matches(password, usuario.getPassword())) {
-            // Generamos token incluyendo el ROL
+            if (usuario == null) {
+                return ResponseEntity.status(401).body("Usuario no encontrado.");
+            }
+
+            // 2. Verificar contraseña encriptada
+            if (!passwordEncoder.matches(password, usuario.getPassword())) {
+                return ResponseEntity.status(401).body("Contraseña incorrecta.");
+            }
+
+            // 3. Generar Token JWT (Incluyendo el ROL)
             String token = jwtUtils.generateToken(username, usuario.getRol().name());
 
-            // Devolvemos Token y Rol para que React sepa qué mostrar
+            // 4. Responder con todo lo necesario para el Frontend
             return ResponseEntity.ok(Map.of(
                     "token", token,
                     "rol", usuario.getRol(),
                     "username", usuario.getUsername()
             ));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error en el servidor al intentar loguear: " + e.getMessage());
         }
-        return ResponseEntity.status(401).body("Credenciales incorrectas");
     }
 }
