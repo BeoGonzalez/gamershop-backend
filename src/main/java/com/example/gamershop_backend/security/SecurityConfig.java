@@ -35,7 +35,6 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 // Desactiva CSRF ya que es una API REST sin estado (STATELESS) y usa JWT.
-                // Si se usara CSRF, se podría usar csrf.ignoringRequestMatchers("/auth/**").
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
@@ -44,6 +43,9 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         // 1. RUTAS PÚBLICAS
+                        // ===> CORRECCIÓN APLICADA AQUÍ: Hace la ruta raíz (/) pública <===
+                        .requestMatchers("/").permitAll()
+
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // Pre-flight CORS
                         .requestMatchers("/auth/**").permitAll() // Login/Registro
                         .requestMatchers(HttpMethod.GET, "/api/producto/**").permitAll() // Ver productos

@@ -12,7 +12,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/auth")
-@CrossOrigin("*") // "Seguro de vida" para evitar bloqueos de CORS extra
+@CrossOrigin("*") // Permite el acceso desde cualquier origen (necesario para Render/Frontends externos)
 public class AuthController {
 
     private final UsuarioRepository usuarioRepository;
@@ -31,10 +31,11 @@ public class AuthController {
         try {
             // 1. Validar si ya existe el usuario
             if (usuarioRepository.existsByUsername(usuario.getUsername())) {
+                // Devolvemos el mensaje que el frontend espera
                 return ResponseEntity.badRequest().body("Error: El nombre de usuario ya está en uso.");
             }
 
-            // 2. Encriptar la contraseña (CRUCIAL)
+            // 2. Encriptar la contraseña (CRUCIAL para que el login funcione)
             usuario.setPassword(passwordEncoder.encode(usuario.getPassword()));
 
             // 3. Asignar rol por defecto si no viene en el JSON
@@ -64,12 +65,14 @@ public class AuthController {
             Usuario usuario = usuarioRepository.findByUsername(username).orElse(null);
 
             if (usuario == null) {
-                return ResponseEntity.status(401).body("Usuario no encontrado.");
+                // Mensaje genérico de seguridad
+                return ResponseEntity.status(401).body("Credenciales incorrectas.");
             }
 
-            // 2. Verificar contraseña encriptada
+            // 2. Verificar contraseña encriptada (Esto resuelve el error "Credenciales incorrectas")
             if (!passwordEncoder.matches(password, usuario.getPassword())) {
-                return ResponseEntity.status(401).body("Contraseña incorrecta.");
+                // Mensaje genérico de seguridad
+                return ResponseEntity.status(401).body("Credenciales incorrectas.");
             }
 
             // 3. Generar Token JWT (Incluyendo el ROL)
@@ -78,7 +81,8 @@ public class AuthController {
             // 4. Responder con todo lo necesario para el Frontend
             return ResponseEntity.ok(Map.of(
                     "token", token,
-                    "rol", usuario.getRol(),
+                    // CORRECCIÓN: Usar .name() para asegurar que el rol es una cadena simple (ADMIN/USER)
+                    "rol", usuario.getRol().name(),
                     "username", usuario.getUsername()
             ));
 
