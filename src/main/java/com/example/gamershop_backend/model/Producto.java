@@ -1,9 +1,6 @@
 package com.example.gamershop_backend.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 
 @Entity
 public class Producto {
@@ -14,45 +11,33 @@ public class Producto {
     private String categoria;
     private int precio;
 
+    // NUEVO CAMPO STOCK
+    private int stock;
+
     public Producto() {
     }
 
-    public Producto(Long id, String nombre, String categoria, int precio) {
+    public Producto(Long id, String nombre, String categoria, int precio, int stock) {
         this.id = id;
         this.nombre = nombre;
         this.categoria = categoria;
         this.precio = precio;
+        this.stock = stock;
     }
 
-    public Long getId() {
-        return id;
-    }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
+    public String getNombre() { return nombre; }
+    public void setNombre(String nombre) { this.nombre = nombre; }
 
-    public String getNombre() {
-        return nombre;
-    }
+    public String getCategoria() { return categoria; }
+    public void setCategoria(String categoria) { this.categoria = categoria; }
 
-    public void setNombre(String nombre) {
-        this.nombre = nombre;
-    }
+    public int getPrecio() { return precio; }
+    public void setPrecio(int precio) { this.precio = precio; }
 
-    public String getCategoria() {
-        return categoria;
-    }
-
-    public void setCategoria(String categoria) {
-        this.categoria = categoria;
-    }
-
-    public int getPrecio() {
-        return precio;
-    }
-
-    public void setPrecio(int precio) {
-        this.precio = precio;
-    }
+    // Getters y Setters de Stock
+    public int getStock() { return stock; }
+    public void setStock(int stock) { this.stock = stock; }
 }
