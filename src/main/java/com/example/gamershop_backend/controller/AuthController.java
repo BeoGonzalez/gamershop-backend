@@ -27,14 +27,19 @@ public class AuthController {
     // 1. Endpoint de REGISTRO
     @PostMapping("/registro")
     public ResponseEntity<String> registro(@RequestBody AuthRequest request) {
-        // Crear el usuario manualmente
         Usuario newUser = new Usuario();
         newUser.setUsername(request.getUsername());
-        newUser.setPassword(request.getPassword()); // Se encriptará en el servicio
-        newUser.setRol("USER");
+        newUser.setPassword(request.getPassword()); // El servicio lo encriptará
+
+        // ANTES: newUser.setRol("USER");
+        // AHORA: Usamos lo que viene del frontend, o por defecto USER si viene vacío
+        if (request.getRol() != null && !request.getRol().isEmpty()) {
+            newUser.setRol(request.getRol());
+        } else {
+            newUser.setRol("USER");
+        }
 
         userDetailService.saveUser(newUser);
-
         return ResponseEntity.ok("Usuario registrado exitosamente");
     }
 
