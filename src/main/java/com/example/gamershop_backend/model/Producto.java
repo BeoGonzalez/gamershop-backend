@@ -10,14 +10,12 @@ public class Producto {
     private String nombre;
     private String categoria;
     private int precio;
-
-    // NUEVO CAMPO STOCK
-    private int stock;
+    private Integer stock;
 
     public Producto() {
     }
 
-    public Producto(Long id, String nombre, String categoria, int precio, int stock) {
+    public Producto(Long id, String nombre, String categoria, int precio, Integer stock) {
         this.id = id;
         this.nombre = nombre;
         this.categoria = categoria;
@@ -38,6 +36,6 @@ public class Producto {
     public void setPrecio(int precio) { this.precio = precio; }
 
     // Getters y Setters de Stock
-    public int getStock() { return stock; }
-    public void setStock(int stock) { this.stock = stock; }
+    public Integer getStock() { return stock; }
+    public void setStock(Integer stock) { this.stock = stock; }
 }
