@@ -25,8 +25,8 @@ public class AuthController {
     }
 
     // 1. Endpoint de REGISTRO
-    @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody AuthRequest request) {
+    @PostMapping("/registro")
+    public ResponseEntity<String> registro(@RequestBody AuthRequest request) {
         // Crear el usuario manualmente
         Usuario newUser = new Usuario();
         newUser.setUsername(request.getUsername());
