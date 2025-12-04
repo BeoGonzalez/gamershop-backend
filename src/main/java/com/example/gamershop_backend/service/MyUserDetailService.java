@@ -1,4 +1,4 @@
-package com.example.gamershop_backend.service.MyUserDetailService;
+package com.example.gamershop_backend.service;
 
 import com.example.gamershop_backend.model.Usuario;
 import com.example.gamershop_backend.repository.UsuarioRepository;
