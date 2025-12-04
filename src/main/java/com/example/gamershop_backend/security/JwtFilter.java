@@ -1,6 +1,6 @@
 package com.example.gamershop_backend.security;
 
-import com.example.gamershop_backend.security.JwtUtils;
+
 import com.example.gamershop_backend.service.MyUserDetailService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
