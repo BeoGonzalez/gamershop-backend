@@ -16,7 +16,7 @@ public class MyUserDetailService implements UserDetailsService {
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder; // Inyectamos el encoder definido en SecurityConfig
 
-    public MyUserDetailsService(UsuarioRepository userRepository, PasswordEncoder passwordEncoder, UsuarioRepository usuarioRepository) {
+    public MyUserDetailService(UsuarioRepository userRepository, PasswordEncoder passwordEncoder, UsuarioRepository usuarioRepository) {
         this.passwordEncoder = passwordEncoder;
         this.usuarioRepository = usuarioRepository;
     }
