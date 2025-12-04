@@ -2,7 +2,7 @@ package com.example.gamershop_backend.controller;
 
 import com.example.gamershop_backend.dto.AuthRequest;
 import com.example.gamershop_backend.model.Usuario;
-import com.example.gamershop_backend.service.MyUserDetailService.MyUserDetailService;
+import com.example.gamershop_backend.service.MyUserDetailService;
 import com.example.gamershop_backend.security.JwtUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
