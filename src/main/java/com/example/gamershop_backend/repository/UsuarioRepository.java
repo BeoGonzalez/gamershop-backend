@@ -2,9 +2,10 @@ package com.example.gamershop_backend.repository;
 
 import com.example.gamershop_backend.model.Usuario;
 import org.springframework.data.jpa.repository.JpaRepository;
-import java.util.Optional;
+import org.springframework.stereotype.Repository;
 
+@Repository
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
-    // Método mágico de JPA para buscar por nombre
-    Optional<Usuario> findByUsername(String username);
+    // Este método es mágico en JPA, busca por el campo 'username'
+    Usuario findByUsername(String username);
 }
