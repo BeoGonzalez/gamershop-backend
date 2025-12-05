@@ -16,33 +16,27 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/auth")
-// @CrossOrigin("*") // Descomenta si tienes problemas de CORS locales, pero SecurityConfig ya lo maneja
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
     private final JwtUtils jwtUtils;
     private final MyUserDetailService userDetailService;
-    private final UsuarioRepository usuarioRepository; // Inyección del repositorio
+    private final UsuarioRepository usuarioRepository;
 
-    // Constructor con todas las inyecciones
-    public AuthController(AuthenticationManager authenticationManager,
-                          JwtUtils jwtUtils,
-                          MyUserDetailService userDetailService,
-                          UsuarioRepository usuarioRepository) {
+    public AuthController(AuthenticationManager authenticationManager, JwtUtils jwtUtils, MyUserDetailService userDetailService, UsuarioRepository usuarioRepository) {
         this.authenticationManager = authenticationManager;
         this.jwtUtils = jwtUtils;
         this.userDetailService = userDetailService;
         this.usuarioRepository = usuarioRepository;
     }
 
-    // REGISTRO
     @PostMapping("/registro")
     public ResponseEntity<String> registro(@RequestBody AuthRequest request) {
         Usuario newUser = new Usuario();
         newUser.setUsername(request.getUsername());
         newUser.setPassword(request.getPassword());
 
-        // Lógica para guardar el ROL correctamente
+        // Asignación de Rol
         if (request.getRol() != null && !request.getRol().isEmpty()) {
             newUser.setRol(request.getRol());
         } else {
@@ -53,11 +47,10 @@ public class AuthController {
         return ResponseEntity.ok("Usuario registrado exitosamente");
     }
 
-    // LOGIN (Versión JSON Corregida)
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequest request) {
         try {
-            // 1. Validar credenciales
+            // 1. Validar Credenciales
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
             );
@@ -65,18 +58,20 @@ public class AuthController {
             return ResponseEntity.status(401).body("Credenciales incorrectas");
         }
 
-        // 2. Generar Token JWT
+        // 2. Generar Token
         final String jwt = jwtUtils.generateToken(request.getUsername());
 
-        // 3. Buscar datos del usuario en la BD (incluyendo el ROL)
-        Usuario usuario = usuarioRepository.findByUsername(request.getUsername());
+        // 3. Obtener Usuario Real (CORRECCIÓN OPTIONAL)
+        // Usamos .orElseThrow() porque el repositorio devuelve Optional<Usuario>
+        Usuario usuario = usuarioRepository.findByUsername(request.getUsername())
+                .orElseThrow(() -> new RuntimeException("Error crítico: Usuario autenticado pero no encontrado en BD"));
 
-        // 4. Construir respuesta JSON
+        // 4. Armar respuesta JSON
         Map<String, String> response = new HashMap<>();
         response.put("token", jwt);
         response.put("username", usuario.getUsername());
 
-        // ¡IMPORTANTE! Validamos que el rol no sea nulo para evitar errores
+        // Enviar Rol (Evitar null pointer)
         response.put("rol", usuario.getRol() != null ? usuario.getRol() : "USER");
 
         return ResponseEntity.ok(response);
