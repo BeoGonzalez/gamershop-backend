@@ -100,9 +100,17 @@ public class ProductoController {
                                     ", Disponible: " + stockActual);
                 }
 
-                // Restar y guardar (seguro porque stockActual no es null)
-                productoDB.setStock(stockActual - cantidadComprada);
-                repo.save(productoDB);
+                // --- NUEVA LÓGICA DE ACTUALIZACIÓN DE STOCK ---
+                int nuevoStock = stockActual - cantidadComprada;
+
+                if (nuevoStock <= 0) {
+                    // Si el stock llega a 0 o menos, ELIMINAMOS el producto
+                    repo.delete(productoDB);
+                } else {
+                    // Si sobra stock, actualizamos la cantidad y GUARDAMOS
+                    productoDB.setStock(nuevoStock);
+                    repo.save(productoDB);
+                }
             }
 
             return ResponseEntity.ok("Compra procesada con éxito. Inventario actualizado.");
