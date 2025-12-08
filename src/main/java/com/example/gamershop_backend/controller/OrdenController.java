@@ -18,7 +18,6 @@ public class OrdenController {
     private final OrdenRepository ordenRepo;
     private final ProductoRepository productoRepo;
     private final UsuarioRepository usuarioRepo;
-    // No necesitamos DetalleOrdenRepository explícitamente porque usamos CascadeType.ALL en Orden
 
     public OrdenController(OrdenRepository ordenRepo, ProductoRepository productoRepo, UsuarioRepository usuarioRepo) {
         this.ordenRepo = ordenRepo;
@@ -26,66 +25,76 @@ public class OrdenController {
         this.usuarioRepo = usuarioRepo;
     }
 
-    // 1. GENERAR UNA NUEVA ORDEN (COMPRAR)
+    // --- 1. PROCESAR COMPRA (Crear Orden, Detalles y Descontar Stock) ---
     @PostMapping("/comprar")
-    @Transactional
+    @Transactional // Garantiza que si falla algo (ej: sin stock), se cancela TODA la orden
     public ResponseEntity<?> crearOrden(@RequestBody CompraRequest request) {
         try {
-            // A. Buscar al usuario
+            // A. Validar Usuario
+            if (request.getUsername() == null || request.getUsername().isEmpty()) {
+                return ResponseEntity.badRequest().body("Usuario requerido.");
+            }
             Usuario usuario = usuarioRepo.findByUsername(request.getUsername())
-                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + request.getUsername()));
 
-            // B. Crear la Orden (Cabecera)
+            // B. Crear Cabecera de la Orden
             Orden orden = new Orden();
             orden.setUsuario(usuario);
             orden.setEstado("COMPLETADO");
+            // La fecha se asigna sola en el constructor de Orden (LocalDateTime.now())
 
             List<DetalleOrden> detalles = new ArrayList<>();
-            double totalOrden = 0.0;
+            double totalCalculado = 0.0;
 
-            // C. Procesar cada producto del carrito
+            // C. Recorrer productos del carrito
             for (CompraRequest.ItemCompra item : request.getItems()) {
-                Producto producto = productoRepo.findById(item.getProductoId())
-                        .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+
+                // Buscar producto
+                Producto producto = productoRepo.findById(item.getId())
+                        .orElseThrow(() -> new RuntimeException("Producto ID " + item.getId() + " no encontrado"));
 
                 // Validar Stock
                 if (producto.getStock() < item.getCantidad()) {
-                    throw new RuntimeException("Stock insuficiente para: " + producto.getNombre());
+                    throw new RuntimeException("Stock insuficiente para: " + producto.getNombre() +
+                            ". Disponible: " + producto.getStock());
                 }
 
                 // Descontar Stock
-                producto.setStock(producto.getStock() - item.getCantidad());
-                // Si el stock llega a 0, ¿lo borramos o lo dejamos en 0?
-                // En un sistema real con historial, NO se borra el producto, se deja en 0 o se desactiva.
-                // Si lo borras, perderás la referencia histórica en 'DetalleOrden'.
-                // RECOMENDACIÓN: Déjalo en 0.
+                int nuevoStock = producto.getStock() - item.getCantidad();
+                producto.setStock(nuevoStock);
+
+                // IMPORTANTE: Guardamos el nuevo stock.
+                // NO BORRAMOS el producto (repo.delete) porque rompería la relación con esta Orden en la BD.
+                // Si el stock es 0, simplemente no aparecerá disponible en el frontend.
                 productoRepo.save(producto);
 
-                // Crear Detalle
+                // Crear Detalle de Orden (Snapshot de la venta)
                 DetalleOrden detalle = new DetalleOrden();
                 detalle.setOrden(orden);
                 detalle.setProducto(producto);
                 detalle.setCantidad(item.getCantidad());
-                detalle.setPrecioUnitario(producto.getPrecio()); // Precio histórico
+                detalle.setPrecioUnitario(producto.getPrecio()); // Guardamos el precio histórico
 
                 detalles.add(detalle);
-                totalOrden += (producto.getPrecio() * item.getCantidad());
+                totalCalculado += (producto.getPrecio() * item.getCantidad());
             }
 
+            // D. Finalizar y Guardar
             orden.setDetalles(detalles);
-            orden.setTotal(totalOrden);
+            orden.setTotal(totalCalculado);
 
-            // D. Guardar todo (Orden + Detalles gracias a Cascade)
+            // Al guardar la Orden, JPA guarda automáticamente los detalles gracias a CascadeType.ALL
             ordenRepo.save(orden);
 
-            return ResponseEntity.ok("Orden #" + orden.getId() + " creada con éxito.");
+            return ResponseEntity.ok("Orden #" + orden.getId() + " registrada con éxito.");
 
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+            // Si hay error, @Transactional revierte los cambios de stock y no guarda la orden
+            return ResponseEntity.badRequest().body("Error en la compra: " + e.getMessage());
         }
     }
 
-    // 2. VER MIS COMPRAS
+    // --- 2. HISTORIAL DE COMPRAS ---
     @GetMapping("/mis-compras/{username}")
     public ResponseEntity<List<Orden>> misCompras(@PathVariable String username) {
         Usuario usuario = usuarioRepo.findByUsername(username)
