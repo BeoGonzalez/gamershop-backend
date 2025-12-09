@@ -61,7 +61,7 @@ public class AuthController {
         // 2. Generar Token
         final String jwt = jwtUtils.generateToken(request.getUsername());
 
-        // 3. Obtener Usuario Real (CORRECCIÓN OPTIONAL)
+        // 3. Obtener Usuario Real (CORRECCIÓN AQUÍ)
         // Usamos .orElseThrow() porque el repositorio devuelve Optional<Usuario>
         Usuario usuario = usuarioRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new RuntimeException("Error crítico: Usuario autenticado pero no encontrado en BD"));
