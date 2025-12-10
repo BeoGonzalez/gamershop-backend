@@ -1,7 +1,6 @@
 package com.example.gamershop_backend.model;
 
 import jakarta.persistence.*;
-import org.w3c.dom.Text;
 
 import java.util.List;
 
@@ -16,7 +15,7 @@ public class Categoria {
     private String nombre;
 
     @Column(columnDefinition = "TEXT")
-    private String descripción;
+    private String descripcion;
 
     // Relación inversa (opcional, útil si quieres obtener productos desde la categoría)
     // mappedBy apunta al nombre del atributo en la clase Producto
@@ -26,9 +25,9 @@ public class Categoria {
     public Categoria() {
     }
 
-    public Categoria(String nombre, String descripción) {
+    public Categoria(String nombre, String descripcion) {
         this.nombre = nombre;
-        this.descripción = descripción;
+        this.descripcion = descripcion;
     }
 
     public Long getId() {
@@ -47,11 +46,11 @@ public class Categoria {
         this.nombre = nombre;
     }
 
-    public String getDescripción() {
-        return descripción;
+    public String getDescripcion() {
+        return descripcion;
     }
 
-    public void setDescripción(String descripción) {
-        this.descripción = descripción;
+    public void setDescripcion(String descripcion) {
+        this.descripcion = descripcion;
     }
 }
