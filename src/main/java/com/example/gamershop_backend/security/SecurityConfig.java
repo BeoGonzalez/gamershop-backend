@@ -28,37 +28,25 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // 1. Habilitar CORS con nuestra configuración personalizada
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-                // 2. Deshabilitar CSRF (No necesario para APIs REST Stateless)
                 .csrf(csrf -> csrf.disable())
-
-                // 3. Configurar Permisos de Rutas
                 .authorizeHttpRequests(auth -> auth
-                        // --- ACCESO PÚBLICO ---
-                        // Autenticación (Login/Registro)
+                        // 1. Accesos Públicos (Login, Registro, Swagger)
                         .requestMatchers("/auth/**").permitAll()
-
-                        // Ver Productos (Solo GET es público, POST/DELETE son privados)
-                        .requestMatchers(HttpMethod.GET, "/productos/**").permitAll()
-
-                        // Documentación Swagger / OpenAPI
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
                         ).permitAll()
 
-                        // --- ACCESO PRIVADO ---
-                        // Cualquier otra ruta requiere Token JWT válido
+                        // 2. Permitir VER (GET) Productos y Categorías a todos
+                        .requestMatchers(HttpMethod.GET, "/productos/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/categorias/**").permitAll() // <--- ¡AQUÍ ESTABA LA CLAVE!
+
+                        // 3. Todo lo demás (POST, DELETE, PUT) requiere Token
                         .anyRequest().authenticated()
                 )
-
-                // 4. Gestión de Sesión Stateless (Sin cookies de sesión)
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // 5. Agregar el Filtro JWT antes del filtro de autenticación de Spring
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -67,20 +55,12 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-
-        // Dominios permitidos (Frontend Local y Producción)
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:3000",
-                "https://gamer-shop-sqvu.vercel.app" // Asegúrate de que esta sea tu URL exacta de Vercel
+                "https://gamer-shop-sqvu.vercel.app"
         ));
-
-        // Métodos permitidos
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-
-        // Cabeceras permitidas (necesario para Authorization)
         configuration.setAllowedHeaders(List.of("*"));
-
-        // Permitir credenciales
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
