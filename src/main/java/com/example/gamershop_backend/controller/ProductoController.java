@@ -61,6 +61,22 @@ public class ProductoController {
         }
     }
 
+    @PutMapping("/{id}/stock")
+    public ResponseEntity<?> actualizarStock(@PathVariable Long id, @RequestParam Integer cantidad) {
+        try {
+            Producto producto = productoRepo.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+
+            int nuevoStock = producto.getStock() + cantidad;
+            producto.setStock(nuevoStock);
+
+            Producto actualizado = productoRepo.save(producto);
+            return ResponseEntity.ok(actualizado);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error al actualizar stock: " + e.getMessage());
+        }
+    }
+
     // Eliminar
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
