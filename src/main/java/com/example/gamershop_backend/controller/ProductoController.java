@@ -67,8 +67,10 @@ public class ProductoController {
             Producto producto = productoRepo.findById(id)
                     .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
 
-            int nuevoStock = producto.getStock() + cantidad;
-            producto.setStock(nuevoStock);
+            // ANTES: int nuevoStock = producto.getStock() + cantidad;
+
+            // AHORA: El stock será exactamente lo que envíes desde el input
+            producto.setStock(cantidad);
 
             Producto actualizado = productoRepo.save(producto);
             return ResponseEntity.ok(actualizado);
