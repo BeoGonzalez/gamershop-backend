@@ -1,6 +1,7 @@
 package com.example.gamershop_backend.controller;
 
 import com.example.gamershop_backend.dto.CompraRequest;
+import com.example.gamershop_backend.dto.OrdenDTO;
 import com.example.gamershop_backend.model.*;
 import com.example.gamershop_backend.repository.*;
 import org.springframework.http.ResponseEntity;
@@ -9,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/ordenes")
@@ -101,5 +103,16 @@ public class OrdenController {
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
         return ResponseEntity.ok(ordenRepo.findByUsuarioId(usuario.getId()));
+    }
+    @GetMapping
+    public ResponseEntity<List<OrdenDTO>> listarTodas() {
+        List<Orden> ordenes = ordenRepo.findAll();
+
+        // Convertimos cada Orden a OrdenDTO para que la fecha vaya bonita
+        List<OrdenDTO> ordenesDTO = ordenes.stream()
+                .map(OrdenDTO::new)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(ordenesDTO);
     }
 }
