@@ -11,4 +11,5 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     // CORRECCIÓN: Cambiamos 'Usuario' por 'Optional<Usuario>'
     // Esto permite usar .orElseThrow() en el servicio sin errores.
     Optional<Usuario> findByUsername(String username);
+    Optional<Usuario> findByEmail(String email);
 }
