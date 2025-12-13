@@ -31,21 +31,41 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        // 1. PÚBLICO (Login, ver productos)
+                        // =============================================================
+                        // 1. ZONA PÚBLICA (Invitados)
+                        // =============================================================
+                        // Login, Registro y Documentación API
                         .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+
+                        // Ver productos y categorías es libre
                         .requestMatchers(HttpMethod.GET, "/productos/**", "/categorias/**").permitAll()
 
-                        // 2. USUARIO LOGUEADO (Perfil, Comprar)
-                        .requestMatchers("/usuarios/perfil", "/usuarios/perfil").authenticated()
+                        // =============================================================
+                        // 2. ZONA DE USUARIOS REGISTRADOS (Cualquier Rol)
+                        // =============================================================
+                        // IMPORTANTE: Esta regla va ANTES del bloqueo general de /usuarios
+                        .requestMatchers(HttpMethod.GET, "/usuarios/perfil").authenticated()
+
+                        // Comprar (Crear orden)
                         .requestMatchers(HttpMethod.POST, "/ordenes").authenticated()
 
-                        // 3. ADMIN (Crear, Editar, Borrar TODO)
+                        // =============================================================
+                        // 3. ZONA DE ADMINISTRADOR (Gestión Total)
+                        // =============================================================
+                        // Escribir en Catálogo (Crear/Editar/Borrar Productos y Categorías)
+                        // El /** bloquea cualquier POST/PUT/DELETE que no hayamos permitido arriba explícitamente
                         .requestMatchers(HttpMethod.POST, "/**").hasAuthority("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/**").hasAuthority("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/**").hasAuthority("ADMIN")
-                        .requestMatchers("/usuarios/**", "/ordenes/**").hasAuthority("ADMIN")
 
-                        // 4. RESTO
+                        // Gestión de Usuarios y Ver todas las Órdenes
+                        .requestMatchers("/usuarios/**").hasAuthority("ADMIN")
+                        .requestMatchers("/ordenes/**").hasAuthority("ADMIN")
+
+                        // =============================================================
+                        // 4. RESTO (Por seguridad, todo lo demás requiere login)
+                        // =============================================================
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -57,7 +77,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*")); // Permite Celular, Localhost, Vercel
+        // Permite conexión desde cualquier origen (Celular, Localhost, Producción)
+        config.setAllowedOriginPatterns(List.of("*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
