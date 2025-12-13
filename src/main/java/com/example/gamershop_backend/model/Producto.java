@@ -5,12 +5,14 @@ import jakarta.persistence.*;
 @Entity
 @Table(name = "productos")
 public class Producto {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     private String nombre;
 
+    // Campos de Texto Largo
     @Column(columnDefinition = "TEXT")
     private String descripcion;
 
@@ -18,66 +20,63 @@ public class Producto {
     private Integer stock;
     private String imagen;
 
+    @Column(columnDefinition = "TEXT")
+    private String variantes; // JSON String: [{"color":"Rojo","url":"..."}]
+
     @ManyToOne
     @JoinColumn(name = "categoria_id", nullable = false)
     private Categoria categoria;
 
+    // 1. Constructor Vacío (Obligatorio para Hibernate)
     public Producto() {
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
+    // 2. Constructor Completo (ACTUALIZADO)
+    public Producto(Long id, String nombre, String descripcion, Double precio, Integer stock, String imagen, String variantes, Categoria categoria) {
         this.id = id;
-    }
-
-    public String getNombre() {
-        return nombre;
-    }
-
-    public void setNombre(String nombre) {
         this.nombre = nombre;
-    }
-
-    public Double getPrecio() {
-        return precio;
-    }
-
-    public void setPrecio(Double precio) {
+        this.descripcion = descripcion;
         this.precio = precio;
-    }
-
-    public Integer getStock() {
-        return stock;
-    }
-
-    public void setStock(Integer stock) {
         this.stock = stock;
-    }
-
-    public String getImagen() {
-        return imagen;
-    }
-
-    public void setImagen(String imagen) {
         this.imagen = imagen;
-    }
-
-    public Categoria getCategoria() {
-        return categoria;
-    }
-
-    public void setCategoria(Categoria categoria) {
+        this.variantes = variantes;
         this.categoria = categoria;
     }
 
-    public String getDescripcion() {
-        return descripcion;
+    // 3. Constructor sin ID (Útil para crear nuevos antes de guardar)
+    public Producto(String nombre, String descripcion, Double precio, Integer stock, String imagen, String variantes, Categoria categoria) {
+        this.nombre = nombre;
+        this.descripcion = descripcion;
+        this.precio = precio;
+        this.stock = stock;
+        this.imagen = imagen;
+        this.variantes = variantes;
+        this.categoria = categoria;
     }
 
-    public void setDescripcion(String descripcion) {
-        this.descripcion = descripcion;
-    }
+    // --- GETTERS Y SETTERS ---
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public String getNombre() { return nombre; }
+    public void setNombre(String nombre) { this.nombre = nombre; }
+
+    public String getDescripcion() { return descripcion; }
+    public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
+
+    public Double getPrecio() { return precio; }
+    public void setPrecio(Double precio) { this.precio = precio; }
+
+    public Integer getStock() { return stock; }
+    public void setStock(Integer stock) { this.stock = stock; }
+
+    public String getImagen() { return imagen; }
+    public void setImagen(String imagen) { this.imagen = imagen; }
+
+    public String getVariantes() { return variantes; }
+    public void setVariantes(String variantes) { this.variantes = variantes; }
+
+    public Categoria getCategoria() { return categoria; }
+    public void setCategoria(Categoria categoria) { this.categoria = categoria; }
 }
