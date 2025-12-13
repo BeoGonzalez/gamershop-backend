@@ -31,25 +31,21 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        // 1. Accesos Públicos (Login, Registro, Swagger)
+                        // 1. PÚBLICO (Login, ver productos)
                         .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/productos/**", "/categorias/**").permitAll()
 
-                        // 2. Permitir VER (GET) Productos y Categorías a TODO EL MUNDO
-                        .requestMatchers(HttpMethod.GET, "/productos/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/categorias/**").permitAll()
+                        // 2. USUARIO LOGUEADO (Perfil, Comprar)
+                        .requestMatchers("/usuarios/perfil", "/usuarios/perfil").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/ordenes").authenticated()
 
-                        // 3. REGLAS DE ADMINISTRADOR (Crear, Editar, Borrar)
-                        // Es vital que tu usuario tenga el rol "ADMIN" en la base de datos
-                        .requestMatchers(HttpMethod.POST, "/productos/**", "/categorias/**").hasAuthority("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/productos/**", "/categorias/**").hasAuthority("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/productos/**", "/categorias/**").hasAuthority("ADMIN")
+                        // 3. ADMIN (Crear, Editar, Borrar TODO)
+                        .requestMatchers(HttpMethod.POST, "/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/**").hasAuthority("ADMIN")
+                        .requestMatchers("/usuarios/**", "/ordenes/**").hasAuthority("ADMIN")
 
-                        // Endpoints exclusivos de gestión
-                        .requestMatchers("/usuarios/**").hasAuthority("ADMIN")
-                        .requestMatchers("/ordenes/**").hasAuthority("ADMIN")
-
-                        // 4. Cualquier otra cosa requiere estar logueado
+                        // 4. RESTO
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -60,17 +56,14 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-
-        // --- CAMBIO IMPORTANTE: Permitir conexión desde cualquier lugar (Móvil/Local) ---
-        configuration.setAllowedOriginPatterns(List.of("*"));
-
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true);
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOriginPatterns(List.of("*")); // Permite Celular, Localhost, Vercel
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("*"));
+        config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
+        source.registerCorsConfiguration("/**", config);
         return source;
     }
 
