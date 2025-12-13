@@ -18,22 +18,30 @@ public class CategoriaController {
         this.categoriaRepository = categoriaRepository;
     }
 
-    // 1. Listar todas las categorías (Público)
+    // 1. LISTAR (Ya lo debes tener para que cargue el select)
     @GetMapping
     public List<Categoria> listar() {
         return categoriaRepository.findAll();
     }
 
-    // 2. Crear categoría (Admin)
+    // 2. GUARDAR (ESTE ES EL QUE TE FALTA SEGURO)
     @PostMapping
-    public ResponseEntity<Categoria> crear(@RequestBody Categoria categoria) {
-        return ResponseEntity.ok(categoriaRepository.save(categoria));
+    public ResponseEntity<Categoria> guardar(@RequestBody Categoria categoria) {
+        // Validar que no venga vacío
+        if (categoria.getNombre() == null || categoria.getNombre().isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        Categoria nueva = categoriaRepository.save(categoria);
+        return ResponseEntity.ok(nueva);
     }
 
-    // 3. Eliminar categoría (Admin)
+    // 3. ELIMINAR (Para el botón de borrar)
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+        if (!categoriaRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
         categoriaRepository.deleteById(id);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 }

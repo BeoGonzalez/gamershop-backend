@@ -33,17 +33,23 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 1. Accesos Públicos (Login, Registro, Swagger)
                         .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers(
-                                "/v3/api-docs/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html"
-                        ).permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
-                        // 2. Permitir VER (GET) Productos y Categorías a todos
+                        // 2. Permitir VER (GET) Productos y Categorías a TODO EL MUNDO
                         .requestMatchers(HttpMethod.GET, "/productos/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/categorias/**").permitAll() // <--- ¡AQUÍ ESTABA LA CLAVE!
+                        .requestMatchers(HttpMethod.GET, "/categorias/**").permitAll()
 
-                        // 3. Todo lo demás (POST, DELETE, PUT) requiere Token
+                        // 3. REGLAS DE ADMINISTRADOR (Crear, Editar, Borrar)
+                        // Es vital que tu usuario tenga el rol "ADMIN" en la base de datos
+                        .requestMatchers(HttpMethod.POST, "/productos/**", "/categorias/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/productos/**", "/categorias/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/productos/**", "/categorias/**").hasAuthority("ADMIN")
+
+                        // Endpoints exclusivos de gestión
+                        .requestMatchers("/usuarios/**").hasAuthority("ADMIN")
+                        .requestMatchers("/ordenes/**").hasAuthority("ADMIN")
+
+                        // 4. Cualquier otra cosa requiere estar logueado
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -55,10 +61,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(
-                "http://localhost:3000",
-                "https://gamer-shop-sqvu.vercel.app"
-        ));
+
+        // --- CAMBIO IMPORTANTE: Permitir conexión desde cualquier lugar (Móvil/Local) ---
+        configuration.setAllowedOriginPatterns(List.of("*"));
+
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
