@@ -13,6 +13,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
 import java.util.List;
 
 @Configuration
@@ -34,40 +35,45 @@ public class SecurityConfig {
                         // =============================================================
                         // 1. REGLA DE ORO: PERMITIR PREFLIGHT (OPTIONS)
                         // =============================================================
-                        // Esto evita errores CORS falsos en la nube
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // =============================================================
                         // 2. ZONA PÚBLICA (Invitados)
                         // =============================================================
-                        .requestMatchers("/auth/**").permitAll()
+                        // IMPORTANTE: Permitir login y registro específicamente
+                        .requestMatchers("/usuarios/login", "/usuarios/registro").permitAll()
+
+                        // Catálogo público (Solo lectura)
+                        .requestMatchers(HttpMethod.GET, "/productos/**", "/categorias/**").permitAll()
+
+                        // Swagger / Docs (Opcional)
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
-                        // PRODUCTOS Y CATEGORÍAS: Permitir GET explícitamente
-                        // Agregamos sin y con slash final para evitar errores tontos
-                        .requestMatchers(HttpMethod.GET, "/productos", "/productos/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/categorias", "/categorias/**").permitAll()
+                        // =============================================================
+                        // 3. ZONA DE USUARIO LOGUEADO (Cualquier ROL)
+                        // =============================================================
+                        // Permitir ver Y EDITAR su propio perfil
+                        .requestMatchers("/usuarios/perfil").authenticated()
 
-                        // =============================================================
-                        // 3. ZONA DE USUARIOS
-                        // =============================================================
-                        .requestMatchers(HttpMethod.GET, "/usuarios/perfil").authenticated()
+                        // Permitir crear orden y ver MIS compras
                         .requestMatchers(HttpMethod.POST, "/ordenes").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/ordenes/mis-compras/**").authenticated()
 
                         // =============================================================
-                        // 4. ZONA DE ADMIN (Bloqueo fuerte)
+                        // 4. ZONA DE ADMIN (CRUD y Gestión)
                         // =============================================================
-                        // Gestión de usuarios y órdenes completa
+                        // Gestión total de Productos y Categorías (Crear, Editar, Borrar)
+                        .requestMatchers(HttpMethod.POST, "/productos/**", "/categorias/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/productos/**", "/categorias/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/productos/**", "/categorias/**").hasAuthority("ADMIN")
+
+                        // Gestión total de Usuarios (Ver lista, borrar) y Órdenes (Ver todas, cambiar estado)
+                        // Nota: Esto va DESPUÉS de las reglas específicas de usuario de arriba
                         .requestMatchers("/usuarios/**").hasAuthority("ADMIN")
                         .requestMatchers("/ordenes/**").hasAuthority("ADMIN")
 
-                        // Modificar catálogo (POST, PUT, DELETE en general)
-                        .requestMatchers(HttpMethod.POST, "/**").hasAuthority("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/**").hasAuthority("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/**").hasAuthority("ADMIN")
-
                         // =============================================================
-                        // 5. EL RESTO
+                        // 5. CUALQUIER OTRA COSA
                         // =============================================================
                         .anyRequest().authenticated()
                 )
@@ -80,12 +86,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*")); // En producción idealmente pon tu dominio de front
+        // Permitir el origen de tu Frontend (Localhost y Render)
+        config.setAllowedOriginPatterns(List.of("http://localhost:3000", "https://*.onrender.com"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"));
         config.setExposedHeaders(List.of("Access-Control-Allow-Origin", "Access-Control-Allow-Credentials"));
         config.setAllowCredentials(true);
-        config.setMaxAge(3600L); // 1 hora de caché para opciones
+        config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
