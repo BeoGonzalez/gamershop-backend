@@ -40,7 +40,10 @@ public class SecurityConfig {
                         // =============================================================
                         // 2. ZONA PÚBLICA (Invitados)
                         // =============================================================
-                        // IMPORTANTE: Permitir login y registro específicamente
+                        // IMPORTANTE: Permitir el nuevo AuthController (/auth/login y /auth/register)
+                        .requestMatchers("/auth/**").permitAll()
+
+                        // Mantenemos compatibilidad con rutas viejas por si acaso
                         .requestMatchers("/usuarios/login", "/usuarios/registro").permitAll()
 
                         // Catálogo público (Solo lectura)
@@ -52,7 +55,7 @@ public class SecurityConfig {
                         // =============================================================
                         // 3. ZONA DE USUARIO LOGUEADO (Cualquier ROL)
                         // =============================================================
-                        // Permitir ver Y EDITAR su propio perfil
+                        // Permitir ver Y EDITAR su propio perfil (Especifico antes que general)
                         .requestMatchers("/usuarios/perfil").authenticated()
 
                         // Permitir crear orden y ver MIS compras
@@ -68,7 +71,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/productos/**", "/categorias/**").hasAuthority("ADMIN")
 
                         // Gestión total de Usuarios (Ver lista, borrar) y Órdenes (Ver todas, cambiar estado)
-                        // Nota: Esto va DESPUÉS de las reglas específicas de usuario de arriba
                         .requestMatchers("/usuarios/**").hasAuthority("ADMIN")
                         .requestMatchers("/ordenes/**").hasAuthority("ADMIN")
 

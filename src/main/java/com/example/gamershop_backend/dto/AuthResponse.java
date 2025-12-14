@@ -4,13 +4,22 @@ public class AuthResponse {
 
     private String token;
     private String username;
-    private String rol; // Mantengo "rol" para compatibilidad con tu Frontend
+    private String rol;
+    private String email; // Agregado para soportar el nuevo AuthController
 
-    // 1. Constructor Vacío (Estándar obligatorio para frameworks como Jackson/Spring)
+    // 1. Constructor Vacío (Obligatorio)
     public AuthResponse() {
     }
 
-    // 2. Constructor Completo (El que usa tu AuthController)
+    // 2. Constructor Completo (El que usa tu AuthController nuevo)
+    public AuthResponse(String token, String username, String rol, String email) {
+        this.token = token;
+        this.username = username;
+        this.rol = rol;
+        this.email = email;
+    }
+
+    // 3. Constructor Antiguo (Por si acaso lo usas en otro lado)
     public AuthResponse(String token, String username, String rol) {
         this.token = token;
         this.username = username;
@@ -41,5 +50,13 @@ public class AuthResponse {
 
     public void setRol(String rol) {
         this.rol = rol;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 }
