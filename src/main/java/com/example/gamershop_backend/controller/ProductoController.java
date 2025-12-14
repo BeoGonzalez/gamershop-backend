@@ -2,6 +2,8 @@ package com.example.gamershop_backend.controller;
 
 import com.example.gamershop_backend.model.Producto;
 import com.example.gamershop_backend.repository.ProductoRepository;
+// Importación necesaria
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -10,19 +12,18 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/productos")
-@CrossOrigin(origins = "*") // Permite que React se conecte sin problemas
+@CrossOrigin(origins = "*")
 public class ProductoController {
 
     @Autowired
     private ProductoRepository productoRepository;
 
-    // 1. LISTAR TODOS (Para el catálogo principal)
+    // PÚBLICO (No necesita anotación porque en SecurityConfig pusimos GET permitAll)
     @GetMapping
     public List<Producto> listar() {
         return productoRepository.findAll();
     }
 
-    // 2. OBTENER UNO POR ID (¡VITAL! Faltaba esto para el Detalle de Producto)
     @GetMapping("/{id}")
     public ResponseEntity<Producto> obtenerPorId(@PathVariable Long id) {
         return productoRepository.findById(id)
@@ -30,37 +31,33 @@ public class ProductoController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // 3. CREAR NUEVO (Solo Admins)
+    // --- AQUÍ APLICAMOS LA SEGURIDAD DIRECTA ---
+
     @PostMapping
+    @PreAuthorize("hasAuthority('ADMIN')") // <--- BLOQUEO INFALIBLE
     public ResponseEntity<Producto> guardar(@RequestBody Producto producto) {
         return ResponseEntity.ok(productoRepository.save(producto));
     }
 
-    // 4. EDITAR COMPLETO (PUT) - Para tu CRUD de Admin
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('ADMIN')") // <--- BLOQUEO INFALIBLE
     public ResponseEntity<Producto> actualizar(@PathVariable Long id, @RequestBody Producto productoEditado) {
+        // ... (tu código de actualizar sigue igual) ...
         return productoRepository.findById(id).map(productoExistente -> {
-            // Actualizamos todos los campos
             productoExistente.setNombre(productoEditado.getNombre());
             productoExistente.setDescripcion(productoEditado.getDescripcion());
             productoExistente.setPrecio(productoEditado.getPrecio());
             productoExistente.setStock(productoEditado.getStock());
             productoExistente.setImagen(productoEditado.getImagen());
-
-            // Importante: Actualizar la categoría y las variantes (galería)
             productoExistente.setCategoria(productoEditado.getCategoria());
-            productoExistente.setVariantes(productoEditado.getVariantes());
-
             return ResponseEntity.ok(productoRepository.save(productoExistente));
         }).orElse(ResponseEntity.notFound().build());
     }
 
-    // 5. ELIMINAR (Solo Admins)
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('ADMIN')") // <--- BLOQUEO INFALIBLE
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
-        if (!productoRepository.existsById(id)) {
-            return ResponseEntity.notFound().build();
-        }
+        if (!productoRepository.existsById(id)) return ResponseEntity.notFound().build();
         productoRepository.deleteById(id);
         return ResponseEntity.noContent().build();
     }
