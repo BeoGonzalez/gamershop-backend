@@ -1,7 +1,7 @@
 package com.example.gamershop_backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore; // <--- Importante
 import jakarta.persistence.*;
-
 import java.util.List;
 
 @Entity
@@ -17,9 +17,11 @@ public class Categoria {
     @Column(columnDefinition = "TEXT")
     private String descripcion;
 
-    // Relación inversa (opcional, útil si quieres obtener productos desde la categoría)
-    // mappedBy apunta al nombre del atributo en la clase Producto
+    // Relación inversa: Una categoría tiene muchos productos.
+    // Usamos @JsonIgnore para que al pedir la lista de categorías,
+    // NO se traiga todos los productos (evita lentitud y bucles).
     @OneToMany(mappedBy = "categoria")
+    @JsonIgnore // <--- ¡LA CLAVE DE LA VELOCIDAD!
     private List<Producto> productos;
 
     public Categoria() {
@@ -29,6 +31,8 @@ public class Categoria {
         this.nombre = nombre;
         this.descripcion = descripcion;
     }
+
+    // --- Getters y Setters ---
 
     public Long getId() {
         return id;
@@ -52,5 +56,13 @@ public class Categoria {
 
     public void setDescripcion(String descripcion) {
         this.descripcion = descripcion;
+    }
+
+    public List<Producto> getProductos() {
+        return productos;
+    }
+
+    public void setProductos(List<Producto> productos) {
+        this.productos = productos;
     }
 }
