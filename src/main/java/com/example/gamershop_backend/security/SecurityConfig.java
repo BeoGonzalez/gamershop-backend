@@ -32,54 +32,29 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        // =============================================================
-                        // 1. REGLA DE ORO: PERMITIR PREFLIGHT (OPTIONS)
-                        // =============================================================
+                        // 1. PREFLIGHT (Obligatorio para que React no falle)
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // =============================================================
-                        // 2. ZONA PÚBLICA (Invitados)
-                        // =============================================================
-                        .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/usuarios/login", "/usuarios/registro").permitAll()
-
-                        // Catálogo público (Solo lectura)
-                        // Aquí dejamos /** porque GET suele ser más permisivo,
-                        // pero para blindarlo agregamos también la raíz explícita
-                        .requestMatchers(HttpMethod.GET, "/productos", "/productos/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/categorias", "/categorias/**").permitAll()
-
+                        // 2. PÚBLICO: Auth y Catálogo (Solo lectura)
+                        .requestMatchers("/auth/**", "/usuarios/login", "/usuarios/registro").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/productos", "/productos/**").permitAll() // <--- GET es público
+                        .requestMatchers(HttpMethod.GET, "/categorias", "/categorias/**").permitAll() // <--- GET es público
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
-                        // =============================================================
-                        // 3. ZONA DE USUARIO LOGUEADO
-                        // =============================================================
+                        // 3. USUARIOS (Perfil y crear órdenes)
                         .requestMatchers("/usuarios/perfil").authenticated()
+                        .requestMatchers("/ordenes/mis-compras/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/ordenes").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/ordenes/mis-compras/**").authenticated()
 
-                        // =============================================================
-                        // 4. ZONA DE ADMIN (CRUD y Gestión) -> ¡AQUÍ ESTABA EL ERROR!
-                        // =============================================================
-                        // Agregamos "/productos" y "/categorias" SIN asteriscos para atrapar el POST
+                        // 4. ADMIN (EL CAMBIO ESTÁ AQUÍ)
+                        // Al quitar HttpMethod.POST/PUT/DELETE, esta regla atrapa TODO lo que no sea GET.
+                        // Y al poner las dos rutas ("/ruta" y "/ruta/**"), atrapamos la raíz y los hijos.
+                        .requestMatchers("/productos", "/productos/**").hasAuthority("ADMIN")
+                        .requestMatchers("/categorias", "/categorias/**").hasAuthority("ADMIN")
+                        .requestMatchers("/usuarios/**").hasAuthority("ADMIN")
+                        .requestMatchers("/ordenes/**").hasAuthority("ADMIN")
 
-                        // --- PRODUCTOS ---
-                        .requestMatchers(HttpMethod.POST, "/productos", "/productos/**").hasAuthority("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/productos", "/productos/**").hasAuthority("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/productos", "/productos/**").hasAuthority("ADMIN")
-
-                        // --- CATEGORÍAS ---
-                        .requestMatchers(HttpMethod.POST, "/categorias", "/categorias/**").hasAuthority("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/categorias", "/categorias/**").hasAuthority("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/categorias", "/categorias/**").hasAuthority("ADMIN")
-
-                        // --- USUARIOS Y ORDENES ---
-                        .requestMatchers("/usuarios", "/usuarios/**").hasAuthority("ADMIN")
-                        .requestMatchers("/ordenes", "/ordenes/**").hasAuthority("ADMIN")
-
-                        // =============================================================
-                        // 5. CUALQUIER OTRA COSA
-                        // =============================================================
+                        // 5. RESTO
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
