@@ -5,59 +5,73 @@ import com.example.gamershop_backend.dto.AuthResponse;
 import com.example.gamershop_backend.model.Usuario;
 import com.example.gamershop_backend.repository.UsuarioRepository;
 import com.example.gamershop_backend.security.JwtUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.Optional;
 
 @RestController
 @RequestMapping("/auth")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "*") // Permite peticiones desde cualquier lugar (React)
 public class AuthController {
 
-    @Autowired
-    private UsuarioRepository usuarioRepository;
+    private final UsuarioRepository usuarioRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtils jwtUtils;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private JwtUtils jwtUtils;
+    // Inyección por Constructor (Mejor práctica que @Autowired en campos)
+    public AuthController(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder, JwtUtils jwtUtils) {
+        this.usuarioRepository = usuarioRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtUtils = jwtUtils;
+    }
 
     // ==========================================
-    // 1. LOGIN CON EMAIL
+    // 1. LOGIN (ADMITE USERNAME O EMAIL)
     // ==========================================
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequest request) {
 
-        // Validar que venga el email
-        if (request.getEmail() == null || request.getEmail().isEmpty()) {
-            return ResponseEntity.badRequest().body("❌ El email es obligatorio para iniciar sesión.");
+        // 1. Validar que venga algo (Usuario o Email)
+        String identificador = null;
+        if (request.getUsername() != null && !request.getUsername().isEmpty()) {
+            identificador = request.getUsername();
+        } else if (request.getEmail() != null && !request.getEmail().isEmpty()) {
+            identificador = request.getEmail();
         }
 
-        // Buscar por EMAIL
-        Optional<Usuario> userOptional = usuarioRepository.findByEmail(request.getEmail());
+        if (identificador == null) {
+            return ResponseEntity.badRequest().body("❌ Debes enviar Usuario o Email para entrar.");
+        }
+
+        // 2. Buscar Usuario (Inteligente: busca por Username O por Email)
+        Optional<Usuario> userOptional = usuarioRepository.findByUsername(identificador);
 
         if (userOptional.isEmpty()) {
-            return ResponseEntity.status(404).body("❌ El correo no está registrado.");
+            // Si no lo encuentra por username, intenta por email
+            userOptional = usuarioRepository.findByEmail(identificador);
+        }
+
+        if (userOptional.isEmpty()) {
+            return ResponseEntity.status(404).body("❌ El usuario/correo no existe.");
         }
 
         Usuario usuario = userOptional.get();
 
-        // Verificar contraseña
+        // 3. Verificar contraseña encriptada
         if (!passwordEncoder.matches(request.getPassword(), usuario.getPassword())) {
             return ResponseEntity.status(401).body("❌ Contraseña incorrecta.");
         }
 
-        // Generar Token
+        // 4. Generar Token (Usamos el Username siempre como identidad del token)
         String token = jwtUtils.generateToken(usuario.getUsername());
 
-        // Responder
+        // 5. Responder con Token, Usuario y Rol
         return ResponseEntity.ok(new AuthResponse(
                 token,
                 usuario.getUsername(),
-                usuario.getRol() // CAMBIO: Ya es String, no necesita .toString()
+                usuario.getRol() // Esto es vital para que el Frontend sepa si mostrar el AdminPanel
         ));
     }
 
@@ -67,25 +81,30 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody AuthRequest request) {
 
-        // Validaciones básicas
+        // Validaciones previas
+        if (request.getUsername() == null || request.getPassword() == null || request.getEmail() == null) {
+            return ResponseEntity.badRequest().body("⚠️ Faltan datos obligatorios.");
+        }
+
         if (usuarioRepository.findByUsername(request.getUsername()).isPresent()) {
-            return ResponseEntity.badRequest().body("⚠️ El usuario '" + request.getUsername() + "' ya existe.");
+            return ResponseEntity.badRequest().body("⚠️ El usuario '" + request.getUsername() + "' ya está ocupado.");
         }
         if (usuarioRepository.findByEmail(request.getEmail()).isPresent()) {
             return ResponseEntity.badRequest().body("⚠️ El email '" + request.getEmail() + "' ya está registrado.");
         }
 
-        // Crear usuario
+        // Crear nuevo usuario
         Usuario newUser = new Usuario();
         newUser.setUsername(request.getUsername());
         newUser.setEmail(request.getEmail());
+        // IMPORTANTE: Encriptar la contraseña antes de guardar
         newUser.setPassword(passwordEncoder.encode(request.getPassword()));
 
-        // CAMBIO IMPORTANTE: Asignamos el rol como String directo
+        // Asignamos rol por defecto (Seguridad)
         newUser.setRol("USER");
 
         usuarioRepository.save(newUser);
 
-        return ResponseEntity.ok("✅ Usuario registrado con éxito. Ahora inicia sesión.");
+        return ResponseEntity.ok("✅ Registro exitoso. ¡Bienvenido a GamerShop!");
     }
 }

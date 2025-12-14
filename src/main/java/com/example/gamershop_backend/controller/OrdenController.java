@@ -10,11 +10,12 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/ordenes")
-@CrossOrigin("*")
+@CrossOrigin(origins = "*") // Corregido el formato estándar de Spring
 public class OrdenController {
 
     private final OrdenRepository ordenRepo;
@@ -27,92 +28,128 @@ public class OrdenController {
         this.usuarioRepo = usuarioRepo;
     }
 
-    // --- 1. PROCESAR COMPRA (Crear Orden, Detalles y Descontar Stock) ---
-    @PostMapping("/comprar")
-    @Transactional // Garantiza que si falla algo (ej: sin stock), se cancela TODA la orden
+    // ==========================================
+    // 1. CREATE (POST) - PROCESAR COMPRA
+    // ==========================================
+    @PostMapping // Ahora responde a POST /ordenes (Estándar REST)
+    @Transactional
     public ResponseEntity<?> crearOrden(@RequestBody CompraRequest request) {
         try {
-            // A. Validar Usuario
+            // Validaciones iniciales
             if (request.getUsername() == null || request.getUsername().isEmpty()) {
-                return ResponseEntity.badRequest().body("Usuario requerido.");
+                return ResponseEntity.badRequest().body("Error: Usuario requerido.");
             }
             Usuario usuario = usuarioRepo.findByUsername(request.getUsername())
-                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + request.getUsername()));
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
-            // B. Crear Cabecera de la Orden
+            // Crear Cabecera
             Orden orden = new Orden();
             orden.setUsuario(usuario);
-            orden.setEstado("COMPLETADO");
-            // La fecha se asigna sola en el constructor de Orden (LocalDateTime.now())
+            orden.setEstado("PAGADO"); // Estado inicial por defecto
 
             List<DetalleOrden> detalles = new ArrayList<>();
             double totalCalculado = 0.0;
 
-            // C. Recorrer productos del carrito
+            // Procesar Items
             for (CompraRequest.ItemCompra item : request.getItems()) {
-
-                // Buscar producto
                 Producto producto = productoRepo.findById(item.getId())
                         .orElseThrow(() -> new RuntimeException("Producto ID " + item.getId() + " no encontrado"));
 
-                // Validar Stock
                 if (producto.getStock() < item.getCantidad()) {
-                    throw new RuntimeException("Stock insuficiente para: " + producto.getNombre() +
-                            ". Disponible: " + producto.getStock());
+                    throw new RuntimeException("Sin stock para: " + producto.getNombre());
                 }
 
-                // Descontar Stock
-                int nuevoStock = producto.getStock() - item.getCantidad();
-                producto.setStock(nuevoStock);
+                // DESCONTAR STOCK
+                producto.setStock(producto.getStock() - item.getCantidad());
+                productoRepo.save(producto); // Guardamos el nuevo stock
 
-                // IMPORTANTE: Guardamos el nuevo stock.
-                // NO BORRAMOS el producto (repo.delete) porque rompería la relación con esta Orden en la BD.
-                // Si el stock es 0, simplemente no aparecerá disponible en el frontend.
-                productoRepo.save(producto);
-
-                // Crear Detalle de Orden (Snapshot de la venta)
-                DetalleOrden detalle = new DetalleOrden();
-                detalle.setOrden(orden);
-                detalle.setProducto(producto);
-                detalle.setCantidad(item.getCantidad());
-                detalle.setPrecioUnitario(producto.getPrecio()); // Guardamos el precio histórico
-
+                // Crear Detalle
+                DetalleOrden detalle = new DetalleOrden(orden, producto, item.getCantidad(), producto.getPrecio());
                 detalles.add(detalle);
                 totalCalculado += (producto.getPrecio() * item.getCantidad());
             }
 
-            // D. Finalizar y Guardar
             orden.setDetalles(detalles);
             orden.setTotal(totalCalculado);
-
-            // Al guardar la Orden, JPA guarda automáticamente los detalles gracias a CascadeType.ALL
             ordenRepo.save(orden);
 
-            return ResponseEntity.ok("Orden #" + orden.getId() + " registrada con éxito.");
+            return ResponseEntity.ok(Map.of("mensaje", "Orden registrada", "id", orden.getId()));
 
         } catch (Exception e) {
-            // Si hay error, @Transactional revierte los cambios de stock y no guarda la orden
-            return ResponseEntity.badRequest().body("Error en la compra: " + e.getMessage());
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
 
-    // --- 2. HISTORIAL DE COMPRAS ---
-    @GetMapping("/mis-compras/{username}")
-    public ResponseEntity<List<Orden>> misCompras(@PathVariable String username) {
-        Usuario usuario = usuarioRepo.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
-        return ResponseEntity.ok(ordenRepo.findByUsuarioId(usuario.getId()));
-    }
+    // ==========================================
+    // 2. READ (GET) - LISTAR TODAS (ADMIN)
+    // ==========================================
     @GetMapping
     public ResponseEntity<List<OrdenDTO>> listarTodas() {
         List<Orden> ordenes = ordenRepo.findAll();
-
-        // Convertimos cada Orden a OrdenDTO para que la fecha vaya bonita
-        List<OrdenDTO> ordenesDTO = ordenes.stream()
-                .map(OrdenDTO::new)
-                .collect(Collectors.toList());
-
+        // Convertimos a DTO para limpiar datos innecesarios y formatear fechas
+        List<OrdenDTO> ordenesDTO = ordenes.stream().map(OrdenDTO::new).collect(Collectors.toList());
         return ResponseEntity.ok(ordenesDTO);
+    }
+
+    // ==========================================
+    // 3. READ (GET) - OBTENER UNA POR ID
+    // ==========================================
+    @GetMapping("/{id}")
+    public ResponseEntity<?> obtenerPorId(@PathVariable Long id) {
+        return ordenRepo.findById(id)
+                .map(orden -> ResponseEntity.ok(new OrdenDTO(orden)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // ==========================================
+    // 4. READ (GET) - MIS COMPRAS (USUARIO)
+    // ==========================================
+    @GetMapping("/mis-compras/{username}")
+    public ResponseEntity<List<OrdenDTO>> misCompras(@PathVariable String username) {
+        Usuario usuario = usuarioRepo.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+        List<Orden> ordenes = ordenRepo.findByUsuarioId(usuario.getId());
+        List<OrdenDTO> dtos = ordenes.stream().map(OrdenDTO::new).collect(Collectors.toList());
+
+        return ResponseEntity.ok(dtos);
+    }
+
+    // ==========================================
+    // 5. UPDATE (PUT) - CAMBIAR ESTADO
+    // ==========================================
+    @PutMapping("/{id}")
+    public ResponseEntity<?> actualizarEstado(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        return ordenRepo.findById(id).map(orden -> {
+            // Buscamos si enviaron un nuevo estado en el JSON {"estado": "ENVIADO"}
+            if (body.containsKey("estado")) {
+                orden.setEstado(body.get("estado"));
+                ordenRepo.save(orden);
+                return ResponseEntity.ok("Estado actualizado a: " + body.get("estado"));
+            }
+            return ResponseEntity.badRequest().body("Falta el campo 'estado'");
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    // ==========================================
+    // 6. DELETE (DELETE) - CANCELAR Y DEVOLVER STOCK
+    // ==========================================
+    @DeleteMapping("/{id}")
+    @Transactional // Vital para asegurar que se devuelva el stock correctamente
+    public ResponseEntity<?> eliminarOrden(@PathVariable Long id) {
+        return ordenRepo.findById(id).map(orden -> {
+
+            // 1. Devolver el stock de cada producto
+            for (DetalleOrden detalle : orden.getDetalles()) {
+                Producto p = detalle.getProducto();
+                p.setStock(p.getStock() + detalle.getCantidad()); // Sumamos lo que se había vendido
+                productoRepo.save(p);
+            }
+
+            // 2. Borrar la orden
+            ordenRepo.delete(orden);
+
+            return ResponseEntity.ok("Orden eliminada y stock devuelto al inventario.");
+        }).orElse(ResponseEntity.notFound().build());
     }
 }

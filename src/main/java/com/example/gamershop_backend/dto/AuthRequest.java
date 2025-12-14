@@ -1,14 +1,17 @@
 package com.example.gamershop_backend.dto;
 
 public class AuthRequest {
+
     private String username;
-    private String email; // <--- ¡NUEVO CAMPO NECESARIO!
+    private String email;
     private String password;
-    private String rol;
+    private String rol; // Opcional (el backend suele forzar "USER" en registros públicos)
 
-    public AuthRequest() {}
+    // 1. Constructor Vacío (OBLIGATORIO para que Spring lea el JSON)
+    public AuthRequest() {
+    }
 
-    // Constructor actualizado
+    // 2. Constructor Completo (Útil para pruebas o creación manual)
     public AuthRequest(String username, String email, String password, String rol) {
         this.username = username;
         this.email = email;
@@ -16,16 +19,37 @@ public class AuthRequest {
         this.rol = rol;
     }
 
-    // Getters y Setters
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+    // --- Getters y Setters ---
 
-    public String getEmail() { return email; } // <--- Getter necesario
-    public void setEmail(String email) { this.email = email; } // <--- Setter necesario
+    public String getUsername() {
+        return username;
+    }
 
-    public String getPassword() { return password; }
-    public void setPassword(String password) { this.password = password; }
+    public void setUsername(String username) {
+        this.username = username;
+    }
 
-    public String getRol() { return rol; }
-    public void setRol(String rol) { this.rol = rol; }
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    public String getRol() {
+        return rol;
+    }
+
+    public void setRol(String rol) {
+        this.rol = rol;
+    }
 }
