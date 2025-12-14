@@ -40,39 +40,42 @@ public class SecurityConfig {
                         // =============================================================
                         // 2. ZONA PÚBLICA (Invitados)
                         // =============================================================
-                        // IMPORTANTE: Permitir el nuevo AuthController (/auth/login y /auth/register)
                         .requestMatchers("/auth/**").permitAll()
-
-                        // Mantenemos compatibilidad con rutas viejas por si acaso
                         .requestMatchers("/usuarios/login", "/usuarios/registro").permitAll()
 
                         // Catálogo público (Solo lectura)
-                        .requestMatchers(HttpMethod.GET, "/productos/**", "/categorias/**").permitAll()
+                        // Aquí dejamos /** porque GET suele ser más permisivo,
+                        // pero para blindarlo agregamos también la raíz explícita
+                        .requestMatchers(HttpMethod.GET, "/productos", "/productos/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/categorias", "/categorias/**").permitAll()
 
-                        // Swagger / Docs (Opcional)
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
                         // =============================================================
-                        // 3. ZONA DE USUARIO LOGUEADO (Cualquier ROL)
+                        // 3. ZONA DE USUARIO LOGUEADO
                         // =============================================================
-                        // Permitir ver Y EDITAR su propio perfil (Especifico antes que general)
                         .requestMatchers("/usuarios/perfil").authenticated()
-
-                        // Permitir crear orden y ver MIS compras
                         .requestMatchers(HttpMethod.POST, "/ordenes").authenticated()
                         .requestMatchers(HttpMethod.GET, "/ordenes/mis-compras/**").authenticated()
 
                         // =============================================================
-                        // 4. ZONA DE ADMIN (CRUD y Gestión)
+                        // 4. ZONA DE ADMIN (CRUD y Gestión) -> ¡AQUÍ ESTABA EL ERROR!
                         // =============================================================
-                        // Gestión total de Productos y Categorías (Crear, Editar, Borrar)
-                        .requestMatchers(HttpMethod.POST, "/productos/**", "/categorias/**").hasAuthority("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/productos/**", "/categorias/**").hasAuthority("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/productos/**", "/categorias/**").hasAuthority("ADMIN")
+                        // Agregamos "/productos" y "/categorias" SIN asteriscos para atrapar el POST
 
-                        // Gestión total de Usuarios (Ver lista, borrar) y Órdenes (Ver todas, cambiar estado)
-                        .requestMatchers("/usuarios/**").hasAuthority("ADMIN")
-                        .requestMatchers("/ordenes/**").hasAuthority("ADMIN")
+                        // --- PRODUCTOS ---
+                        .requestMatchers(HttpMethod.POST, "/productos", "/productos/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/productos", "/productos/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/productos", "/productos/**").hasAuthority("ADMIN")
+
+                        // --- CATEGORÍAS ---
+                        .requestMatchers(HttpMethod.POST, "/categorias", "/categorias/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/categorias", "/categorias/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/categorias", "/categorias/**").hasAuthority("ADMIN")
+
+                        // --- USUARIOS Y ORDENES ---
+                        .requestMatchers("/usuarios", "/usuarios/**").hasAuthority("ADMIN")
+                        .requestMatchers("/ordenes", "/ordenes/**").hasAuthority("ADMIN")
 
                         // =============================================================
                         // 5. CUALQUIER OTRA COSA
@@ -88,7 +91,6 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // Permitir el origen de tu Frontend (Localhost y Render)
         config.setAllowedOriginPatterns(List.of("http://localhost:3000", "https://*.onrender.com"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"));
