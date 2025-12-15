@@ -7,9 +7,10 @@ import com.example.gamershop_backend.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize; // <--- VITAL
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder; // <--- VITAL
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,10 +28,10 @@ public class UsuarioController {
     private MyUserDetailService myUserDetailService;
 
     @Autowired
-    private PasswordEncoder passwordEncoder; // <--- Necesario para encriptar al editar
+    private PasswordEncoder passwordEncoder;
 
     // ==========================================
-    // 1. OBTENER MI PERFIL (GET)
+    // 1. OBTENER MI PERFIL (GET) - Acceso: Authenticated
     // ==========================================
     @GetMapping("/perfil")
     public ResponseEntity<UsuarioResponse> obtenerMiPerfil() {
@@ -49,7 +50,7 @@ public class UsuarioController {
     }
 
     // ==========================================
-    // 2. ACTUALIZAR MI PERFIL (PUT) - NUEVO
+    // 2. ACTUALIZAR MI PERFIL (PUT) - Acceso: Authenticated
     // ==========================================
     @PutMapping("/perfil")
     public ResponseEntity<?> actualizarMiPerfil(@RequestBody Usuario datosNuevos) {
@@ -57,28 +58,22 @@ public class UsuarioController {
         String username = auth.getName();
 
         return usuarioRepository.findByUsername(username).map(usuario -> {
-            // Actualizar email si viene en el JSON
             if (datosNuevos.getEmail() != null && !datosNuevos.getEmail().isEmpty()) {
                 usuario.setEmail(datosNuevos.getEmail());
             }
-
-            // Actualizar password SOLO si el usuario envió uno nuevo
             if (datosNuevos.getPassword() != null && !datosNuevos.getPassword().isEmpty()) {
-                String passEncriptada = passwordEncoder.encode(datosNuevos.getPassword());
-                usuario.setPassword(passEncriptada);
+                usuario.setPassword(passwordEncoder.encode(datosNuevos.getPassword()));
             }
-
-            // NOTA: No dejamos que el usuario se cambie su propio ROL por seguridad.
-
             usuarioRepository.save(usuario);
             return ResponseEntity.ok("Perfil actualizado correctamente");
         }).orElse(ResponseEntity.notFound().build());
     }
 
     // ==========================================
-    // 3. LISTAR TODOS (SOLO ADMIN) (GET)
+    // 3. LISTAR TODOS (SOLO ADMIN) - Acceso: ADMIN
     // ==========================================
     @GetMapping
+    @PreAuthorize("hasAuthority('ADMIN')") // <--- BLINDAJE
     public List<UsuarioResponse> listarTodos() {
         return usuarioRepository.findAll().stream()
                 .map(u -> new UsuarioResponse(u.getId(), u.getUsername(), u.getEmail(), u.getRol()))
@@ -86,26 +81,27 @@ public class UsuarioController {
     }
 
     // ==========================================
-    // 4. REGISTRAR USUARIO/ADMIN (POST)
+    // 4. REGISTRAR USUARIO (POST) - Acceso: Público / Admin
     // ==========================================
+    // No ponemos PreAuthorize aquí porque también sirve para el registro público
     @PostMapping("/registro")
     public ResponseEntity<?> registrar(@RequestBody Usuario usuario) {
         return ResponseEntity.status(HttpStatus.CREATED).body(myUserDetailService.saveUser(usuario));
     }
 
     // ==========================================
-    // 5. EDITAR USUARIO POR ID (ADMIN) (PUT) - NUEVO
+    // 5. EDITAR OTRO USUARIO (PUT) - Acceso: ADMIN
     // ==========================================
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('ADMIN')") // <--- BLINDAJE
     public ResponseEntity<?> editarUsuarioAdmin(@PathVariable Long id, @RequestBody Usuario datosNuevos) {
         return usuarioRepository.findById(id).map(usuario -> {
 
-            // El Admin puede cambiar todo
             if (datosNuevos.getUsername() != null) usuario.setUsername(datosNuevos.getUsername());
             if (datosNuevos.getEmail() != null) usuario.setEmail(datosNuevos.getEmail());
             if (datosNuevos.getRol() != null) usuario.setRol(datosNuevos.getRol());
 
-            // Si el admin resetea la contraseña
+            // Solo actualizamos contraseña si envían una nueva
             if (datosNuevos.getPassword() != null && !datosNuevos.getPassword().isEmpty()) {
                 usuario.setPassword(passwordEncoder.encode(datosNuevos.getPassword()));
             }
@@ -116,9 +112,10 @@ public class UsuarioController {
     }
 
     // ==========================================
-    // 6. ELIMINAR USUARIO (DELETE)
+    // 6. ELIMINAR USUARIO (DELETE) - Acceso: ADMIN
     // ==========================================
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('ADMIN')") // <--- BLINDAJE
     public ResponseEntity<?> eliminar(@PathVariable Long id) {
         if (!usuarioRepository.existsById(id)) {
             return ResponseEntity.notFound().build();
