@@ -5,8 +5,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory; // Importante para logs profesionales
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -20,68 +19,59 @@ import java.io.IOException;
 public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
-    private final MyUserDetailService userDetailService;
+    private final MyUserDetailService myUserDetailService;
 
-    // Logger profesional (mejor que System.out.println)
-    private static final Logger logger = LoggerFactory.getLogger(JwtFilter.class);
-
-    public JwtFilter(JwtUtils jwtUtils, MyUserDetailService userDetailService) {
+    // Usamos @Lazy para evitar referencias circulares si las hubiera
+    public JwtFilter(JwtUtils jwtUtils, @Lazy MyUserDetailService myUserDetailService) {
         this.jwtUtils = jwtUtils;
-        this.userDetailService = userDetailService;
+        this.myUserDetailService = myUserDetailService;
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        try {
-            // 1. Obtener el header Authorization
-            String authHeader = request.getHeader("Authorization");
-            String username = null;
-            String jwt = null;
+        String authHeader = request.getHeader("Authorization");
+        String token = null;
+        String username = null;
 
-            // 2. Validar formato "Bearer ..."
-            if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                jwt = authHeader.substring(7); // Quitar "Bearer "
-                try {
-                    username = jwtUtils.extractUsername(jwt);
-                } catch (Exception e) {
-                    // Esto pasa si el token expiró o está mal formado.
-                    // NO lanzamos error aquí. Simplemente logueamos y dejamos que siga como anónimo.
-                    logger.error("No se pudo extraer el usuario del token: {}", e.getMessage());
-                }
+        // 1. Extraer el token del Header
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+            try {
+                username = jwtUtils.extractUsername(token);
+            } catch (Exception e) {
+                System.out.println("❌ [JwtFilter] Error extrayendo usuario del token: " + e.getMessage());
             }
-
-            // 3. Si hay usuario y NO está autenticado todavía en el contexto
-            if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-
-                UserDetails userDetails = this.userDetailService.loadUserByUsername(username);
-
-                // 4. Validar que el token corresponda al usuario y no haya expirado
-                if (jwtUtils.validateToken(jwt, userDetails)) {
-
-                    // 5. Crear la autenticación
-                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,
-                            userDetails.getAuthorities()
-                    );
-
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-                    // 6. ESTABLECER LA AUTENTICACIÓN EN SPRING SECURITY
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
-                }
-            }
-
-        } catch (Exception e) {
-            // Capturamos cualquier otro error inesperado para que no tumbe el servidor
-            logger.error("Error crítico en autenticación de usuario: {}", e.getMessage());
         }
 
-        // 7. SIEMPRE continuar con la cadena de filtros
-        // Si el token era válido, Spring ya sabe quién eres.
-        // Si no, sigues como "invitado" y SecurityConfig decidirá si te deja pasar o te da 403.
-        chain.doFilter(request, response);
+        // 2. Si hay usuario pero no hay autenticación en el contexto actual
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+
+            // 3. ¡VITAL! Cargamos los detalles COMPLETOS (incluyendo ROLES) desde la BD
+            UserDetails userDetails = myUserDetailService.loadUserByUsername(username);
+
+            // 4. Validamos el token
+            if (jwtUtils.validateToken(token, userDetails)) {
+
+                // DIAGNÓSTICO EN CONSOLA (Para que veas que está pasando)
+                System.out.println("✅ [JwtFilter] Usuario autenticado: " + username);
+                System.out.println("✅ [JwtFilter] Roles cargados: " + userDetails.getAuthorities());
+
+                // 5. Creamos la autenticación CON LOS ROLES (userDetails.getAuthorities())
+                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                        userDetails,
+                        null,
+                        userDetails.getAuthorities() // <--- ¡AQUÍ ESTABA EL PROBLEMA!
+                );
+
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                // 6. Establecemos la seguridad
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+            }
+        }
+
+        filterChain.doFilter(request, response);
     }
 }

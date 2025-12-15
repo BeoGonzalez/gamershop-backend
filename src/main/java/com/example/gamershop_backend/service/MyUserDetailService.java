@@ -18,45 +18,53 @@ public class MyUserDetailService implements UserDetailsService {
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
 
-    // Corregí el constructor (tenías el repositorio duplicado)
     public MyUserDetailService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder) {
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
-    // Lógica para REGISTRAR
+    // =================================================================
+    // 1. CARGAR USUARIO (LOGIN Y VALIDACIÓN DE TOKEN)
+    // =================================================================
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        // 1. Buscar usuario en la BD
+        Usuario user = usuarioRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado: " + username));
+
+        // 2. --- CHIVATO DE DEPURACIÓN (MIRA ESTO EN LA CONSOLA) ---
+        System.out.println("🔎 [MyUserDetailService] Usuario encontrado: " + user.getUsername());
+        System.out.println("🔎 [MyUserDetailService] Rol crudo en Base de Datos: '" + user.getRol() + "'");
+
+        // 3. Convertir el Rol de String a Authority
+        // Si el rol es null o vacío, asignamos "USER" por defecto para evitar errores
+        String rol = (user.getRol() != null && !user.getRol().isEmpty()) ? user.getRol() : "USER";
+
+        List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(rol));
+
+        System.out.println("🔎 [MyUserDetailService] Autoridad asignada a Spring: " + authorities.get(0).getAuthority());
+
+        // 4. Devolver el objeto User de Spring Security
+        return new org.springframework.security.core.userdetails.User(
+                user.getUsername(),
+                user.getPassword(),
+                authorities
+        );
+    }
+
+    // =================================================================
+    // 2. GUARDAR USUARIO (REGISTRO)
+    // =================================================================
     public Usuario saveUser(Usuario usuario) {
+        // Encriptar contraseña antes de guardar
         String encodedPassword = passwordEncoder.encode(usuario.getPassword());
         usuario.setPassword(encodedPassword);
 
-        // Aseguramos que tenga un rol por defecto si viene nulo
+        // Si no trae rol, poner USER por defecto
         if (usuario.getRol() == null || usuario.getRol().isEmpty()) {
             usuario.setRol("USER");
         }
 
         return usuarioRepository.save(usuario);
-    }
-
-    // Lógica para LOGIN
-    @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        Usuario user = usuarioRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado: " + username));
-
-        // --- CORRECCIÓN CRÍTICA AQUÍ ---
-        // Convertimos el String "ADMIN" de la BD en una autoridad real de Spring
-        List<SimpleGrantedAuthority> authorities;
-
-        if (user.getRol() != null && !user.getRol().isEmpty()) {
-            authorities = List.of(new SimpleGrantedAuthority(user.getRol()));
-        } else {
-            authorities = List.of(new SimpleGrantedAuthority("USER")); // Rol por defecto
-        }
-
-        return new org.springframework.security.core.userdetails.User(
-                user.getUsername(),
-                user.getPassword(),
-                authorities // <--- ¡AQUÍ PASAMOS EL ROL REAL!
-        );
     }
 }
